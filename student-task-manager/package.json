@@ -3,21 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "dotenv -e .env.development -- node scripts/validate-env.mjs && dotenv -e .env.development -- next dev",
+    "build:staging": "cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- node scripts/validate-env.mjs && cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- next build",
+    "build:production": "cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- node scripts/validate-env.mjs && cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "next": "16.0.10",
     "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "react-dom": "19.2.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^7.0.3",
+    "dotenv-cli": "^7.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "tailwindcss": "^4",

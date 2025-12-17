@@ -1,5 +1,83 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+---
+
+## Production-Ready Environment & Secrets
+
+This application is configured for development, staging, and production with strict separation of public vs server-only variables and CI/CD-compatible builds.
+
+### Environments
+
+- Development: local iteration with `.env.development`
+- Staging: pre-production testing with `.env.staging`
+- Production: end-user deployments with `.env.production`
+
+### Variable Loading
+
+- Public variables must start with `NEXT_PUBLIC_` (included in client bundles)
+- Server-only secrets (e.g., `DATABASE_URL`, `AUTH_SECRET`, `JWT_SECRET`) are accessible on the server only via `process.env` and `lib/env.ts`
+- Files:
+	- `.env.example` – template with placeholders (tracked)
+	- `.env.development`, `.env.staging`, `.env.production` – real values (git-ignored)
+
+### Build Scripts
+
+- `npm run dev` – loads `.env.development`, validates variables, starts dev server
+- `npm run build:staging` – loads `.env.staging`, validates, builds
+- `npm run build:production` – loads `.env.production`, validates, builds
+
+During builds, we log only safe metadata: `APP_ENV`, `NODE_ENV`, and `NEXT_PUBLIC_API_URL`. Secrets never print.
+
+### Using Secrets Safely
+
+- Server-only access: import from [lib/env.ts](lib/env.ts). This module imports `server-only` and throws if required variables are missing.
+- Client-safe access: import public values from [lib/publicEnv.ts](lib/publicEnv.ts) or use `process.env.NEXT_PUBLIC_*` directly in client components.
+- API routes and server components must read secrets only on the server. Do not reference server-only vars in client components.
+
+### CI/CD (GitHub Actions)
+
+Workflow: [.github/workflows/ci-build.yml](../.github/workflows/ci-build.yml)
+
+- Branch `staging` → staging build; branch `main` → production build
+- Secrets injected via GitHub Secrets:
+	- `STAGING_NEXT_PUBLIC_API_URL`, `STAGING_DATABASE_URL`, `STAGING_AUTH_SECRET`, `STAGING_JWT_SECRET`
+	- `PROD_NEXT_PUBLIC_API_URL`, `PROD_DATABASE_URL`, `PROD_AUTH_SECRET`, `PROD_JWT_SECRET`
+- The workflow writes an env file, runs validation, builds, and uploads the artifact
+
+### Verification
+
+Run locally:
+
+```bash
+npm ci
+npm run dev
+```
+
+Staging build:
+
+```bash
+npm run build:staging
+```
+
+Production build:
+
+```bash
+npm run build:production
+```
+
+Checks:
+
+- Correct endpoint: open the console during build; ensure `[next.config] Environment summary` shows expected `NEXT_PUBLIC_API_URL`
+- No secrets in client: search the browser bundle for `DATABASE_URL`, `AUTH_SECRET`, `JWT_SECRET` – they must not appear
+- Git hygiene: only `.env.example` is tracked; `.env.*` are ignored (see [.gitignore](.gitignore))
+
+### Why Multi-Environment
+
+- CI/CD reliability: explicit env selection and validation reduces drift
+- Deployment safety: staging catches issues before prod
+- Rollbacks: artifacts are isolated by environment
+- Team collaboration: predictable dev/staging/prod behavior prevents surprise
+
 ## Getting Started
 
 First, run the development server:
