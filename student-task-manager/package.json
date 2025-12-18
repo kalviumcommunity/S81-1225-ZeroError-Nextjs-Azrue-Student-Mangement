@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.development -- node scripts/validate-env.mjs && dotenv -e .env.development -- next dev",
+    "build": "npm run build:production",
     "build:staging": "cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- node scripts/validate-env.mjs && cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- next build",
     "build:production": "cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- node scripts/validate-env.mjs && cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- next build",
     "start": "next start",
