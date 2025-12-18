@@ -1,0 +1,91 @@
+name: CI/CD Pipeline - Azure Deployment
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20.x'
+  AZURE_WEBAPP_NAME: student-task-manager1
+  APP_PATH: student-task-manager
+  IMAGE_NAME: student-task-manager
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_PATH }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ env.APP_PATH }}
+      - run: npm run lint
+        working-directory: ${{ env.APP_PATH }}
+      - run: npm run build
+        working-directory: ${{ env.APP_PATH }}
+        env:
+          NODE_ENV: production
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.AZURE_REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
+          password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.AZURE_REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=raw,value=latest
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./${{ env.APP_PATH }}
+          file: ./${{ env.APP_PATH }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    environment:
+      name: Production
+    steps:
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          images: ${{ secrets.AZURE_REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+      - uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az webapp config appsettings set \
+              --name ${{ env.AZURE_WEBAPP_NAME }} \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --settings NODE_ENV=production PORT=3000 WEBSITES_PORT=3000 NEXT_TELEMETRY_DISABLED=1
+      - run: az logout
+        if: always()
+
+  health-check:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - run: sleep 40
+      - run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://student-task-manager1-e0epe9b3gna6bbhu.centralindia-01.azurewebsites.net)
+          [ "$code" = "200" ]
