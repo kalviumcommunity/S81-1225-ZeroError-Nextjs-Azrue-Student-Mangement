@@ -112,3 +112,45 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+---
+
+## Code Quality: TypeScript, ESLint & Prettier
+
+### Strict TypeScript
+
+We enable strict typing in [tsconfig.json](tsconfig.json) to prevent runtime bugs:
+
+- strict: enables all strict checks
+- noImplicitAny: disallows implicit `any`
+- noUnusedLocals / noUnusedParameters: surfaces dead code
+- forceConsistentCasingInFileNames: avoids case-sensitivity issues across OSes
+- skipLibCheck: skips type-checking of dependencies for faster builds
+
+### ESLint + Prettier
+
+- Config: flat ESLint in [eslint.config.mjs](eslint.config.mjs) extends `next/core-web-vitals` and integrates Prettier (via `eslint-config-prettier` and `eslint-plugin-prettier/recommended`).
+- Rules: `no-console`=warn, `semi`=always, `quotes`=double.
+- Prettier: see [/.prettierrc](.prettierrc) for formatting preferences.
+
+Useful commands:
+
+```bash
+npm run lint         # ESLint (flat config)
+npm run format       # Prettier write
+```
+
+### Pre-commit Hooks
+
+Husky + lint-staged enforce standards on staged files:
+
+- Hook: `.husky/pre-commit` runs `npx lint-staged`
+- Pattern: `*.{ts,tsx,js,jsx}` → `eslint --fix` then `prettier --write`
+
+To test locally, try staging a file that violates a rule (e.g., missing semicolon). The hook auto-fixes where possible; non-fixable issues will block the commit until resolved.
+
+### Why This Matters
+
+- Fewer runtime bugs: strict typing catches issues at compile time.
+- Consistent code style: Prettier fixes formatting automatically.
+- Predictable reviews: ESLint rules reduce nitpicks and drift.

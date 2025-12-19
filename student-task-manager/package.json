@@ -8,7 +8,9 @@
     "build:staging": "cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- node scripts/validate-env.mjs && cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- next build",
     "build:production": "cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- node scripts/validate-env.mjs && cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "dependencies": {
     "next": "16.0.10",
@@ -25,7 +27,18 @@
     "dotenv-cli": "^7.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }
