@@ -18,7 +18,27 @@ This application is configured for development, staging, and production with str
 - Server-only secrets (e.g., `DATABASE_URL`, `AUTH_SECRET`, `JWT_SECRET`) are accessible on the server only via `process.env` and `lib/env.ts`
 - Files:
 	- `.env.example` – template with placeholders (tracked)
-	- `.env.development`, `.env.staging`, `.env.production` – real values (git-ignored)
+	- `.env.local` – local developer overrides and secrets (git-ignored)
+	- `.env.development`, `.env.staging`, `.env.production` – optional per-environment files (git-ignored)
+
+### Local Setup (.env.local)
+
+1) Copy the template: `cp .env.example .env.local` and adjust values for your machine.
+2) Start the app: `npm run dev`. Only `NEXT_PUBLIC_*` vars are exposed to the browser.
+
+Recommended local values:
+
+```dotenv
+# Client-safe
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_APP_ENV=development
+
+# Server-only
+APP_ENV=development
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/studentdb_dev
+AUTH_SECRET=dev-secret-change-me
+JWT_SECRET=dev-jwt-secret-change-me
+```
 
 ### Build Scripts
 
@@ -33,6 +53,41 @@ During builds, we log only safe metadata: `APP_ENV`, `NODE_ENV`, and `NEXT_PUBLI
 - Server-only access: import from [lib/env.ts](lib/env.ts). This module imports `server-only` and throws if required variables are missing.
 - Client-safe access: import public values from [lib/publicEnv.ts](lib/publicEnv.ts) or use `process.env.NEXT_PUBLIC_*` directly in client components.
 - API routes and server components must read secrets only on the server. Do not reference server-only vars in client components.
+
+#### Safe Usage Examples
+
+Server-only (API route, Server Component, or any code that runs on the server):
+
+```ts
+// server.ts or inside an API route
+import { env } from '@/lib/env';
+
+async function connectDb() {
+	const url = env.DATABASE_URL; // server-only
+	// connect using url
+}
+```
+
+Client-safe (Client Component or hook):
+
+```tsx
+"use client";
+import { publicEnv } from '@/lib/publicEnv';
+
+export function ApiBase() {
+	const apiUrl = publicEnv.NEXT_PUBLIC_API_URL; // safe for client
+	return <div>API Base: {apiUrl}</div>;
+}
+```
+
+You can also read public values directly: `process.env.NEXT_PUBLIC_API_URL` inside Client Components.
+
+### Common Pitfalls
+
+- Forgetting the `NEXT_PUBLIC_` prefix for variables needed in the browser → they will be undefined on the client.
+- Using server-only secrets inside Client Components/hooks → never read `DATABASE_URL`, `AUTH_SECRET`, `JWT_SECRET` in the browser.
+- Confusing runtime vs. build-time: Next.js inlines `NEXT_PUBLIC_*` at build, so rebuild if you change them.
+- Accidentally committing secrets: `.env.*` is ignored; only `.env.example` is tracked (see [.gitignore](.gitignore)).
 
 ### CI/CD (GitHub Actions)
 
