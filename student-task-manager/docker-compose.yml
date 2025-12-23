@@ -1,22 +1,31 @@
-version: '3.8'
+version: '3.9'
 
 services:
   # Next.js Application
-  student-task-manager:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: student-task-manager
+    container_name: nextjs_app
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
-    env_file:
-      - .env.production
+      - DATABASE_URL=postgresql://postgres:password@db:5432/mydb
+      - REDIS_URL=redis://redis:6379
+      - NEXT_PUBLIC_API_URL=http://localhost:3000/api
+      - NEXT_PUBLIC_APP_ENV=production
+      - AUTH_SECRET=docker-auth-secret-change-in-production
+      - JWT_SECRET=docker-jwt-secret-change-in-production
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
-      - app-network
+      - localnet
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
@@ -24,6 +33,52 @@ services:
       retries: 3
       start_period: 40s
 
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - localnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - localnet
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
-  app-network:
+  localnet:
     driver: bridge
+
+volumes:
+  db_data:
+    driver: local
+  redis_data:
+    driver: local
