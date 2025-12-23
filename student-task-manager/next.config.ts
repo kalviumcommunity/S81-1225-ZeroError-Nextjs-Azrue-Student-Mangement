@@ -10,9 +10,6 @@ const safeLog = {
 console.log('[next.config] Environment summary:', safeLog);
 
 const nextConfig: NextConfig = {
-  // Enable standalone output for Docker
-  output: 'standalone',
-  
   // Optimize for production
   compress: true,
   

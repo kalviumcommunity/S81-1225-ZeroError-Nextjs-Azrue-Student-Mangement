@@ -1,29 +1,48 @@
-version: '3.8'
+version: '3.9'
 
 services:
-  # Next.js Application
-  student-task-manager:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: student-task-manager
+  app:
+    build: .
+    container_name: nextjs_app
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
     env_file:
       - .env.production
-    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://postgres:password@db:5432/mydb
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
     networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - localnet
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - localnet
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    ports:
+      - "6379:6379"
+    networks:
+      - localnet
 
 networks:
-  app-network:
+  localnet:
     driver: bridge
+
+volumes:
+  db_data:
