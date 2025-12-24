@@ -455,6 +455,71 @@ To test locally, try staging a file that violates a rule (e.g., missing semicolo
 
 ---
 
+<<<<<<< HEAD
+## Database Schema (PostgreSQL + Prisma)
+
+- Schema: see [prisma/schema.prisma](prisma/schema.prisma)
+- Seed: see [prisma/seed.js](prisma/seed.js)
+- Env: ensure [\.env](.env) contains a valid `DATABASE_URL` (development uses `postgres://postgres:postgres@localhost:5432/studentdb_dev`).
+
+### Core Entities
+
+- **User**: id, `email` (unique), `passwordHash`, `role`; relations to `Membership`, `Team` (owner), `Project` (owner), `Task` (assignee), `Comment`, `ActivityLog`.
+- **Team**: id, name, description; owner; relations to `Membership`, `Project`, `Label`, `ActivityLog`; unique `(ownerId, name)`.
+- **Membership**: join `User`↔`Team` with `role`; unique `(userId, teamId)`.
+- **Project**: id, name, description, `dueDate`; belongs to `Team` and owner `User`; relations to `Task`, `ActivityLog`; unique `(teamId, name)`.
+- **Task**: id, title, description, `status`, `priority`, `dueDate`, `position`; belongs to `Project`; optional `assignee` `User`; relations to `Comment`, `Label` (via `TaskLabel`), `ActivityLog`.
+- **Label**: team-scoped tag for tasks; unique `(teamId, name)`; join via `TaskLabel`.
+- **TaskLabel**: M:N join for `Task`↔`Label` with composite id `(taskId, labelId)`.
+- **Comment**: content by `author` on a `task`.
+- **ActivityLog**: audit trail for actions (e.g., `TASK_CREATED`), linked to `actor` and optional `task`, `project`, `team`.
+
+### Keys, Relations, Constraints
+
+- **PKs**: all `id` fields use `Int @id @default(autoincrement())`.
+- **FKs**: explicit `@relation(fields: [...], references: [...])` with `onDelete: Cascade` for dependent entities (e.g., deleting a `Project` cascades to its `Task`s, `Comment`s, `TaskLabel`s, logs).
+- **Unique**: `User.email`, `Membership(userId, teamId)`, `Label(teamId, name)`, `Project(teamId, name)`.
+- **Indexes**: high-traffic lookups on `Task(projectId, status)`, `Task(assigneeId)`, `Task(dueDate)`, `Membership(teamId/userId)`, `Comment(taskId/authorId)`, `ActivityLog(actorId/taskId/projectId/teamId)`.
+- **Enums**: `UserRole`, `MembershipRole`, `TaskStatus`, `TaskPriority` constrain domain values.
+
+### Normalization Choices
+
+- **1NF**: all attributes are atomic (no arrays/JSON columns in core models; M:N via `TaskLabel`).
+- **2NF**: no partial dependency on composite keys; composites only exist in join tables for uniqueness.
+- **3NF**: non-key attributes depend solely on the key (e.g., `Label.name` scoped by `teamId` to avoid cross-team duplication).
+
+### Migrations & Seeding
+
+Commands (run from project folder):
+
+```bash
+npm install
+npm run prisma:generate
+npm run prisma:migrate
+npm run db:seed
+```
+
+If you see `P1001: Can't reach database server at localhost:5432`, start PostgreSQL locally (Windows Service) or via Docker Desktop:
+
+```bash
+# Using Docker Desktop (requires Docker running)
+docker run -d --name stm-postgres -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=studentdb_dev postgres:16
+```
+
+Then re-run `npm run prisma:migrate` and `npm run db:seed`.
+
+### Query Patterns
+
+- **List tasks by project**: filter by `projectId`, sort by `position`/`dueDate`, and include `labels`.
+- **My tasks**: filter `assigneeId`, index-backed for fast dashboards.
+- **Team projects**: filter `teamId` and aggregate by `TaskStatus` for progress views.
+- **Audit trails**: fetch `ActivityLog` by `actorId` or `taskId` for timelines.
+
+### Notes & Challenges
+
+- Migration generation verified locally; client generation succeeded. Database connectivity depends on a running PostgreSQL instance aligned with `DATABASE_URL`.
+- Seeding creates sample `User`s, a `Team`, one `Project`, two `Task`s, labels, comments, and activity logs to validate relations.
+=======
 ## 📦 Docker & Compose Setup - Deliverables
 
 This section documents the completed Docker and Docker Compose implementation for the Student Task Manager application.
@@ -717,3 +782,4 @@ This Docker setup provides a foundation for:
 **Project**: S81-1225 Student Task Manager  
 **Assignment**: Cloud Deployments 101 - Docker & Compose
 
+>>>>>>> main
