@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Student {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(255)
+  email     String    @unique @db.VarChar(255)
+  studentId String    @unique @map("student_id") @db.VarChar(50)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tasks     Task[]
+  sessions  Session[]
+
+  @@map("students")
+}
+
+model Task {
+  id          Int       @id @default(autoincrement())
+  studentId   Int?      @map("student_id")
+  title       String    @db.VarChar(255)
+  description String?
+  status      String    @default("pending") @db.VarChar(50)
+  priority    String    @default("medium") @db.VarChar(50)
+  dueDate     DateTime? @map("due_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  student     Student?  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId], map: "idx_tasks_student_id")
+  @@index([status], map: "idx_tasks_status")
+  @@map("tasks")
+}
+
+model Session {
+  id           Int      @id @default(autoincrement())
+  studentId    Int?     @map("student_id")
+  sessionToken String   @unique @map("session_token") @db.VarChar(255)
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  student      Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([sessionToken], map: "idx_sessions_token")
+  @@index([studentId], map: "idx_sessions_student_id")
+  @@map("sessions")
+}

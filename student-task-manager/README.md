@@ -35,7 +35,7 @@ NEXT_PUBLIC_APP_ENV=development
 
 # Server-only
 APP_ENV=development
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/studentdb_dev
+DATABASE_URL=postgresql://postgres:password@localhost:5432/mydb?schema=public
 AUTH_SECRET=dev-secret-change-me
 JWT_SECRET=dev-jwt-secret-change-me
 ```
@@ -257,6 +257,124 @@ For comprehensive information, see **[DOCKER_SETUP.md](./DOCKER_SETUP.md)** whic
 - ✅ Reflection on challenges faced and solutions
 
 ---
+
+## Prisma ORM
+
+This project uses **Prisma** as an ORM to:
+
+- Provide type-safe database queries (generated types from the schema)
+- Reduce SQL stringly-typed bugs with a fluent query API
+- Centralize database modeling and relationships
+
+### 1) Install and initialize Prisma
+
+From the `student-task-manager/` folder:
+
+```bash
+npm install prisma --save-dev
+npm install @prisma/client
+npx prisma init --datasource-provider postgresql
+```
+
+This creates:
+
+- `prisma/schema.prisma`
+- `prisma.config.ts`
+- `.env` (git-ignored)
+
+Set your database connection string:
+
+```dotenv
+DATABASE_URL="postgresql://postgres:password@localhost:5432/mydb?schema=public"
+```
+
+Note: with **Prisma v7+**, the `DATABASE_URL` is configured for Prisma commands via `prisma.config.ts` (not inside `schema.prisma`).
+
+### 2) Define your models
+
+The Prisma schema is in [prisma/schema.prisma](prisma/schema.prisma). It mirrors the existing Postgres tables created by `scripts/init-db.sql`:
+
+- `students`
+- `tasks`
+- `sessions`
+
+Example (trimmed):
+
+```prisma
+datasource db {
+  provider = "postgresql"
+}
+
+model Student {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  studentId String   @unique @map("student_id")
+}
+```
+
+### 3) Generate the Prisma Client
+
+```bash
+npx prisma generate
+```
+
+### 4) Connect Prisma to the application
+
+Client initialization (singleton) lives in [lib/prisma.ts](lib/prisma.ts):
+
+```ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ['query', 'info', 'warn', 'error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+### 5) Test the connection (quick query)
+
+A minimal test helper is in [lib/getStudents.ts](lib/getStudents.ts):
+
+```ts
+import { prisma } from '@/lib/prisma';
+
+export async function getStudents() {
+  const students = await prisma.student.findMany();
+  console.log(students);
+  return students;
+}
+```
+
+To verify end-to-end:
+
+1) Start Postgres (Docker):
+
+```bash
+docker-compose up -d db
+```
+
+2) Start the Next.js app:
+
+```bash
+npm run dev
+```
+
+3) Call `getStudents()` from any server-only code path (API route / Server Component). When it runs successfully you should see:
+
+- Prisma query logs (because `log: ['query', ...]` is enabled)
+- An array of students printed to the server console
+
+### Reflection: why Prisma helps here
+
+- **Type safety**: the generated client gives typed models like `prisma.student.*`.
+- **Query reliability**: Prisma validates schema + queries at build time and reduces runtime SQL mistakes.
+- **Developer productivity**: consistent patterns (relations, includes, filtering) across the codebase.
 
 ## Getting Started
 

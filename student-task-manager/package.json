@@ -13,6 +13,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@prisma/client": "^7.2.0",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
@@ -24,6 +25,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "cross-env": "^7.0.3",
+    "dotenv": "^17.2.3",
     "dotenv-cli": "^7.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
@@ -32,6 +34,7 @@
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "prettier": "^3.3.3",
+    "prisma": "^7.2.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
