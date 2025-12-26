@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from "@/lib/responseHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,12 +19,11 @@ export async function GET(req: NextRequest) {
       }),
       prisma.user.count(),
     ]);
-    return NextResponse.json({ page, limit, total, items }, { status: 200 });
+
+    return sendPaginatedSuccess(items, total, page, limit, "Users fetched successfully");
   } catch (error: any) {
-    const msg = error?.code === "P1001"
-      ? "Database is unreachable. Start PostgreSQL and run migrations."
-      : (error?.message ?? "Query failed");
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }
 
@@ -30,21 +31,24 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, email, passwordHash } = body ?? {};
+
     if (!name || !email || !passwordHash) {
-      return NextResponse.json({ error: "name, email, passwordHash are required" }, { status: 400 });
+      return sendError(
+        "Missing required fields: name, email, and passwordHash are required",
+        ERROR_CODES.MISSING_REQUIRED_FIELD,
+        400,
+        { missingFields: [!name && "name", !email && "email", !passwordHash && "passwordHash"].filter(Boolean) }
+      );
     }
+
     const user = await prisma.user.create({
       data: { name, email, passwordHash },
       select: { id: true, name: true, email: true, createdAt: true },
     });
-    return NextResponse.json({ message: "User created", user }, { status: 201 });
+
+    return sendSuccess(user, "User created successfully", 201);
   } catch (error: any) {
-    if (error?.code === "P2002") {
-      return NextResponse.json({ error: "Email already exists" }, { status: 400 });
-    }
-    const msg = error?.code === "P1001"
-      ? "Database is unreachable. Start PostgreSQL and run migrations."
-      : (error?.message ?? "Create failed");
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }

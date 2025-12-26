@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -23,10 +25,11 @@ export async function GET(req: NextRequest) {
       }),
       prisma.project.count({ where }),
     ]);
-    return NextResponse.json({ page, limit, total, items }, { status: 200 });
+
+    return sendPaginatedSuccess(items, total, page, limit, 'Projects fetched successfully');
   } catch (error: any) {
-    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Query failed');
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }
 
@@ -34,9 +37,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { teamId, ownerId, name, description, dueDate } = body ?? {};
+
     if (!teamId || !ownerId || !name) {
-      return NextResponse.json({ error: 'teamId, ownerId, name are required' }, { status: 400 });
+      return sendError(
+        'Missing required fields: teamId, ownerId, and name are required',
+        ERROR_CODES.MISSING_REQUIRED_FIELD,
+        400,
+        { missingFields: [!teamId && 'teamId', !ownerId && 'ownerId', !name && 'name'].filter(Boolean) }
+      );
     }
+
     const project = await prisma.project.create({
       data: {
         teamId: Number(teamId),
@@ -47,10 +57,10 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true, name: true, teamId: true, ownerId: true, createdAt: true },
     });
-    return NextResponse.json({ message: 'Project created', project }, { status: 201 });
+
+    return sendSuccess(project, 'Project created successfully', 201);
   } catch (error: any) {
-    if (error?.code === 'P2002') return NextResponse.json({ error: 'Project name already exists in team' }, { status: 400 });
-    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Create failed');
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }
