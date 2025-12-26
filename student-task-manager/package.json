@@ -19,11 +19,12 @@
     "db:seed": "npx prisma db seed"
   },
   "dependencies": {
+    "@prisma/client": "^5.19.0",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "server-only": "^0.0.1",
-    "@prisma/client": "^5.19.0"
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -39,18 +40,17 @@
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "prettier": "^3.3.3",
+    "prisma": "^5.19.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
-    "typescript": "^5",
-    "prisma": "^5.19.0"
+    "typescript": "^5"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix",
       "prettier --write"
     ]
-  }
-  ,
+  },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },

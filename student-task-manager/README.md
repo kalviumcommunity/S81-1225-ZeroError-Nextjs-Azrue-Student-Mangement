@@ -198,6 +198,109 @@ docker ps
 # def456         postgres:15-alpine       Up (healthy)
 # ghi789         redis:7-alpine           Up (healthy)
 
+---
+
+## ✅ Input Validation with Zod
+
+Robust input validation prevents malformed requests from reaching your business logic or database. This repo uses [Zod](https://github.com/colinhacks/zod) to validate API inputs consistently.
+
+### Why Validation Matters
+- Prevents malformed JSON and missing fields
+- Ensures types and constraints before DB writes
+- Returns clear, structured errors to clients
+
+Example invalid body that should not be accepted:
+
+```json
+{
+	"name": "",
+	"email": "not-an-email"
+}
+```
+
+### Schema Definition (Shared)
+- Location: [lib/schemas/userSchema.ts](lib/schemas/userSchema.ts)
+
+```ts
+import { z } from "zod";
+
+export const userSchema = z.object({
+	name: z.string().min(2, "Name must be at least 2 characters long"),
+	email: z.string().email("Invalid email address"),
+	age: z.number().min(18, "User must be 18 or older"),
+});
+
+export type UserInput = z.infer<typeof userSchema>;
+```
+
+### API Route Usage
+- Endpoint: POST [/app/api/users/route.ts](app/api/users/route.ts)
+
+```ts
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
+import { userSchema } from "@/lib/schemas/userSchema";
+
+export async function POST(req: Request) {
+	try {
+		const body = await req.json();
+		const data = userSchema.parse(body);
+		return NextResponse.json({ success: true, message: "User created successfully", data });
+	} catch (error) {
+		if (error instanceof ZodError) {
+			return NextResponse.json({
+				success: false,
+				message: "Validation Error",
+				errors: error.errors.map((e) => ({ field: e.path[0], message: e.message })),
+			}, { status: 400 });
+		}
+		return NextResponse.json({ success: false, message: "Unexpected error" }, { status: 500 });
+	}
+}
+```
+
+### Reuse Between Client and Server
+- Server: parse and enforce constraints before DB operations
+- Client (optional): pre-validate forms to show instant user feedback
+- Shared types: import `UserInput` where you need strong types
+
+### Test the Endpoint
+Start the dev server (see earlier sections), then:
+
+Passing example:
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+	-H "Content-Type: application/json" \
+	-d '{"name":"Alice","email":"alice@example.com","age":22}'
+```
+
+Failing example:
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+	-H "Content-Type: application/json" \
+	-d '{"name":"A","email":"bademail"}'
+```
+
+Expected failing response:
+
+```json
+{
+	"success": false,
+	"message": "Validation Error",
+	"errors": [
+		{ "field": "name", "message": "Name must be at least 2 characters long" },
+		{ "field": "email", "message": "Invalid email address" }
+	]
+}
+```
+
+### Team Consistency
+- Central schemas reduce drift across routes and components
+- Clear error contracts simplify client handling and logging
+- Type-safe inputs improve maintainability and refactoring confidence
+
 # Test database connection and view sample data
 docker exec -it postgres_db psql -U postgres -d mydb -c "SELECT * FROM students;"
 
