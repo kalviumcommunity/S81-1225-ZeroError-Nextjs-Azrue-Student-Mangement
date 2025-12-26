@@ -522,4 +522,97 @@ This Docker setup provides a foundation for:
 **Project**: S81-1225 Student Task Manager  
 **Assignment**: Cloud Deployments 101 - Docker & Compose
 
->>>>>>> main
+---
+
+## Prisma Transactions, Indexes & Optimization
+
+This project demonstrates database transactions, indexing, and query optimization using Prisma ORM. See schema and code links: [prisma/schema.prisma](prisma/schema.prisma), [lib/prisma.ts](lib/prisma.ts), [Transaction API](app/api/tasks/transaction/route.ts), [Optimized Tasks API](app/api/tasks/optimized/route.ts).
+
+### Transaction Workflow (+ Rollback)
+
+- Endpoint: POST `/api/tasks/transaction`
+- Body:
+
+```json
+{
+	"projectId": 1,
+	"title": "My atomic task",
+	"description": "Created within a transaction",
+	"assigneeId": 1,
+	"priority": "HIGH",
+	"fail": false
+}
+```
+
+- Behavior: Creates a `Task` and an `ActivityLog` inside `prisma.$transaction`. If `fail=true`, an error is thrown to verify rollback (neither record persists).
+
+Quick test (PowerShell):
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks/transaction -Body (@{projectId=1; title='Tx demo'; fail=$false} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks/transaction -Body (@{projectId=1; title='Tx rollback demo'; fail=$true} | ConvertTo-Json) -ContentType 'application/json'
+```
+
+Expected: first call returns `{ ok: true, ... }`; second returns `{ ok: false, message: "Intentional failure ..." }` and no partial writes.
+
+### Optimized Queries (Select + Pagination + Batch)
+
+- Endpoint: GET `/api/tasks/optimized?projectId=1&status=TODO&take=20&skip=0`
+- Returns list with minimal fields (`select`) and `total` via an internal `$transaction`.
+- Supports `assigneeId`, `projectId`, `status`, `take` (≤100), `skip`.
+- Bulk create demo: POST `/api/tasks/optimized` with body `{ "projectId": 1, "count": 50 }` uses `createMany`.
+
+### Indexes Added (Performance)
+
+We added composite indexes to speed up common filters and sorts:
+
+- `Task`: `@@index([status, createdAt])`, `@@index([assigneeId, status, createdAt])`
+- `Project`: `@@index([teamId, createdAt])`
+- `ActivityLog`: `@@index([projectId, createdAt])`, `@@index([teamId, createdAt])`
+
+Apply migration:
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate:indexes
+```
+
+### Benchmark: Before vs After
+
+Enable Prisma query logs:
+
+```bash
+npm run dev:debug
+```
+
+On Windows PowerShell if running the Next server directly:
+
+```powershell
+$env:DEBUG="prisma:query"; npm run dev
+```
+
+Then hit the same endpoint multiple times before and after running the index migration. Compare timing in server logs and/or run `EXPLAIN` in your SQL client for representative queries (e.g., filtering tasks by `assigneeId` + `status`).
+
+Suggested steps:
+
+- Record timings for `/api/tasks/optimized?assigneeId=1&status=TODO&take=20` pre-index
+- Run `npm run prisma:migrate:indexes`
+- Record timings again and note differences
+
+### Anti-patterns Avoided
+
+- Over-fetching: we use `select` in list endpoints instead of large `include`s
+- N+1 queries: combine list + count in a single `$transaction` and avoid per-item lookups
+- Full table scans: add targeted, composite indexes for frequent filters/sorts
+
+### Production Monitoring
+
+- Track: query latency (p95/p99), error rates, slow query logs, and timeouts
+- Tools: Prisma logs (`DEBUG=prisma:query`), database-level `EXPLAIN ANALYZE`, managed insights (e.g., Azure Database for PostgreSQL Performance Recommendations)
+- Alert on: rising latency, lock contention, connection pool saturation, and error spikes
+
+### Notes
+
+- Ensure `DATABASE_URL` is configured (see [lib/env.ts](lib/env.ts) and `.env*` files). Run migrations and seed before hitting endpoints.
+- The demo uses a fallback `actorId` in the transaction route; wire this to your auth user in real flows.
+
