@@ -337,12 +337,11 @@ To test locally, try staging a file that violates a rule (e.g., missing semicolo
 
 ---
 
-<<<<<<< HEAD
 ## Database Schema (PostgreSQL + Prisma)
 
-- Schema: see [prisma/schema.prisma](prisma/schema.prisma)
-- Seed: see [prisma/seed.js](prisma/seed.js)
-- Env: ensure [\.env](.env) contains a valid `DATABASE_URL` (development uses `postgres://postgres:postgres@localhost:5432/studentdb_dev`).
+- Schema: [prisma/schema.prisma](prisma/schema.prisma)
+- Seed: [prisma/seed.ts](prisma/seed.ts)
+- Seed config: `package.json` → `prisma.seed` (runs via `npx prisma db seed`)
 
 ### Core Entities
 
@@ -356,226 +355,85 @@ To test locally, try staging a file that violates a rule (e.g., missing semicolo
 - **Comment**: content by `author` on a `task`.
 - **ActivityLog**: audit trail for actions (e.g., `TASK_CREATED`), linked to `actor` and optional `task`, `project`, `team`.
 
-### Keys, Relations, Constraints
+---
 
-- **PKs**: all `id` fields use `Int @id @default(autoincrement())`.
-- **FKs**: explicit `@relation(fields: [...], references: [...])` with `onDelete: Cascade` for dependent entities (e.g., deleting a `Project` cascades to its `Task`s, `Comment`s, `TaskLabel`s, logs).
-- **Unique**: `User.email`, `Membership(userId, teamId)`, `Label(teamId, name)`, `Project(teamId, name)`.
-- **Indexes**: high-traffic lookups on `Task(projectId, status)`, `Task(assigneeId)`, `Task(dueDate)`, `Membership(teamId/userId)`, `Comment(taskId/authorId)`, `ActivityLog(actorId/taskId/projectId/teamId)`.
-- **Enums**: `UserRole`, `MembershipRole`, `TaskStatus`, `TaskPriority` constrain domain values.
+## Prisma Migrations Workflow
 
-### Normalization Choices
+A migration captures the changes made to your Prisma schema and keeps the database in sync.
 
-- **1NF**: all attributes are atomic (no arrays/JSON columns in core models; M:N via `TaskLabel`).
-- **2NF**: no partial dependency on composite keys; composites only exist in join tables for uniqueness.
-- **3NF**: non-key attributes depend solely on the key (e.g., `Label.name` scoped by `teamId` to avoid cross-team duplication).
+### 1) First Migration (init)
 
-### Migrations & Seeding
-
-Commands (run from project folder):
+1. Ensure a valid `DATABASE_URL` is set (recommended: copy `.env.example` → `.env.local`).
+2. Start PostgreSQL (Docker or local service).
+3. Run:
 
 ```bash
-npm install
-npm run prisma:generate
-npm run prisma:migrate
-npm run db:seed
+npx prisma migrate dev --name init_schema
 ```
 
-If you see `P1001: Can't reach database server at localhost:5432`, start PostgreSQL locally (Windows Service) or via Docker Desktop:
+Prisma will:
+
+- Create `prisma/migrations/<timestamp>_init_schema/`
+- Apply SQL to your Postgres database
+- Update Prisma Client metadata (run `npx prisma generate` if you changed schema)
+
+### 2) Modify Schema → New Migration
+
+After adding/updating a model:
 
 ```bash
-# Using Docker Desktop (requires Docker running)
-docker run -d --name stm-postgres -p 5432:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=studentdb_dev postgres:16
+npx prisma migrate dev --name add_project_table
 ```
 
-Then re-run `npm run prisma:migrate` and `npm run db:seed`.
+Review the generated SQL in `prisma/migrations/.../migration.sql` to understand exactly what will run.
 
-### Query Patterns
+### Reset / Rollback (Safe Dev Workflow)
 
-- **List tasks by project**: filter by `projectId`, sort by `position`/`dueDate`, and include `labels`.
-- **My tasks**: filter `assigneeId`, index-backed for fast dashboards.
-- **Team projects**: filter `teamId` and aggregate by `TaskStatus` for progress views.
-- **Audit trails**: fetch `ActivityLog` by `actorId` or `taskId` for timelines.
+In development, the “rollback” pattern is usually a full reset:
 
-### Notes & Challenges
-
-- Migration generation verified locally; client generation succeeded. Database connectivity depends on a running PostgreSQL instance aligned with `DATABASE_URL`.
-- Seeding creates sample `User`s, a `Team`, one `Project`, two `Task`s, labels, comments, and activity logs to validate relations.
-=======
-## 📦 Docker & Compose Setup - Deliverables
-
-This section documents the completed Docker and Docker Compose implementation for the Student Task Manager application.
-
-### ✅ Completed Files
-
-#### 1. **Dockerfile** (Multi-stage Build)
-- **Location**: `./Dockerfile`
-- **Type**: Multi-stage production build
-- **Stages**:
-  - `deps`: Installs dependencies using `npm ci`
-  - `builder`: Builds Next.js application with production optimizations
-  - `runner`: Creates minimal runtime image with non-root user
-- **Image Size**: ~150MB (optimized from ~1GB)
-- **Security**: Runs as `nextjs` user (UID 1001), not root
-- **Features**:
-  - Layer caching for faster rebuilds
-  - Production-only dependencies
-  - Standalone output for optimal performance
-
-#### 2. **docker-compose.yml** (Service Orchestration)
-- **Location**: `./docker-compose.yml`
-- **Version**: 3.9
-- **Services Defined**:
-  
-  **a) App Service (`nextjs_app`)**
-  - Built from local Dockerfile
-  - Port: 3000
-  - Health check: HTTP GET to `/api/health`
-  - Depends on: PostgreSQL and Redis (with health conditions)
-  - Environment: All required variables configured
-  
-  **b) Database Service (`postgres_db`)**
-  - Image: `postgres:15-alpine`
-  - Port: 5432
-  - Volume: `db_data` for persistence
-  - Init script: `./scripts/init-db.sql` auto-runs on first start
-  - Health check: `pg_isready` command
-  - Credentials: postgres/password/mydb
-  
-  **c) Redis Service (`redis_cache`)**
-  - Image: `redis:7-alpine`
-  - Port: 6379
-  - Volume: `redis_data` for AOF persistence
-  - Command: `redis-server --appendonly yes`
-  - Health check: `redis-cli ping`
-
-- **Network**: `localnet` (bridge driver) for isolated communication
-- **Volumes**: 
-  - `db_data`: PostgreSQL data persistence
-  - `redis_data`: Redis AOF persistence
-
-#### 3. **scripts/init-db.sql** (Database Initialization)
-- **Location**: `./scripts/init-db.sql`
-- **Purpose**: Automatically initializes PostgreSQL schema on first container start
-- **Contents**:
-  - **Tables Created**:
-    - `students` (id, name, email, student_id, timestamps)
-    - `tasks` (id, student_id, title, description, status, priority, due_date, timestamps)
-    - `sessions` (id, student_id, session_token, expires_at, timestamps)
-  - **Indexes**: Optimized for queries on student_id, status, session_token
-  - **Triggers**: Auto-update `updated_at` on row modifications
-  - **Sample Data**:
-    - 3 students (John Doe, Jane Smith, Bob Johnson)
-    - 5 tasks with various statuses (pending, in_progress)
-  - **Functions**: `update_updated_at_column()` for automatic timestamp management
-
-#### 4. **.dockerignore** (Build Optimization)
-- **Location**: `./.dockerignore`
-- **Purpose**: Excludes unnecessary files from Docker build context
-- **Excludes**:
-  - `node_modules` (reinstalled in container)
-  - `.next`, `out`, `build` (regenerated during build)
-  - `.env*` files (except `.env.production`)
-  - Git files, IDE configs, logs
-- **Benefit**: Faster builds, smaller context size
-
-#### 5. **.env.docker.example** (Environment Template)
-- **Location**: `./.env.docker.example`
-- **Purpose**: Template for Docker-specific environment variables
-- **Variables Documented**:
-  - Application settings (NODE_ENV, PORT, APP_ENV)
-  - Client-side variables (NEXT_PUBLIC_*)
-  - Database URL (PostgreSQL connection string)
-  - Redis URL
-  - Authentication secrets (AUTH_SECRET, JWT_SECRET)
-  - PostgreSQL credentials
-- **Usage**: Copy to `.env.docker` and customize for local development
-
-#### 6. **DOCKER_SETUP.md** (Comprehensive Documentation)
-- **Location**: `./DOCKER_SETUP.md`
-- **Size**: ~700 lines of detailed documentation
-- **Sections**:
-  - 📋 Overview and architecture diagrams
-  - 🏗️ Service breakdown with visual representation
-  - 🐳 Line-by-line Dockerfile explanation (all 3 stages)
-  - 🔧 Complete docker-compose.yml breakdown
-  - 🗄️ Database schema and initialization details
-  - 🚀 Step-by-step getting started guide
-  - 🛠️ Common commands reference
-  - 🔍 Environment variables documentation
-  - 🐛 Troubleshooting guide (5+ common issues with solutions)
-  - 📊 Performance optimization techniques
-  - 🔒 Security best practices
-  - 📸 Expected output examples and verification steps
-  - 🤔 Reflection on challenges faced and solutions
-
-### 🎯 Features Implemented
-
-#### Network Configuration
-- **Network Name**: `localnet`
-- **Driver**: Bridge
-- **Purpose**: Isolated container communication
-- **Benefits**:
-  - Containers reference each other by service name (e.g., `db`, `redis`)
-  - No exposure to external networks
-  - Automatic DNS resolution
-
-#### Volume Management
-- **db_data**: 
-  - Type: Named volume
-  - Mount: `/var/lib/postgresql/data`
-  - Purpose: PostgreSQL data persistence
-  - Survives: Container deletion and recreation
-  
-- **redis_data**:
-  - Type: Named volume
-  - Mount: `/data`
-  - Purpose: Redis AOF (Append Only File) persistence
-  - Survives: Container deletion and recreation
-
-#### Health Checks
-All services include health monitoring:
-
-- **App**: HTTP request to `/api/health` every 30s
-- **PostgreSQL**: `pg_isready` check every 10s
-- **Redis**: `redis-cli ping` every 10s
-
-**Benefits**:
-- Prevents premature traffic routing
-- Enables automatic recovery
-- Ensures dependency readiness before app starts
-
-#### Dependency Management
-- App service uses `depends_on` with health conditions
-- Waits for both database and Redis to be healthy
-- Eliminates race conditions during startup
-
-### 🧪 Verification Steps Completed
-
-#### 1. Container Status
 ```bash
-docker ps
-# Verified all 3 containers running with "healthy" status
+npx prisma migrate reset
 ```
 
-#### 2. Database Connection
+This drops the schema, re-applies all migrations from scratch, and then runs seeding (if configured).
+
+### Production Safety (How to Protect Data)
+
+- Prefer forward-only migrations (add a follow-up migration instead of “rolling back”).
+- Always test migrations on staging with a production-like snapshot.
+- Take a backup before deploying migrations (and verify restore works).
+- Use `npx prisma migrate deploy` in production CI/CD (avoid `migrate dev` and never run `migrate reset` in prod).
+
+---
+
+## Seed Script
+
+### File
+
+- Seed script: [prisma/seed.ts](prisma/seed.ts)
+
+### Run
+
 ```bash
-docker exec -it postgres_db psql -U postgres -d mydb -c "SELECT * FROM students;"
-# Verified sample data loaded correctly
+npx prisma db seed
 ```
 
-#### 3. Redis Connection
-```bash
-docker exec -it redis_cache redis-cli ping
-# Verified response: PONG
+### Idempotency (No Duplicate Records)
+
+The seed script is designed to be idempotent:
+
+- Uses `upsert` for entities with unique constraints (e.g., `User.email`, `Team(ownerId,name)`, `Project(teamId,name)`, `Label(teamId,name)`).
+- Uses `findFirst + create` for entities without unique constraints (e.g., `Task`), keyed by a stable “natural key” (`projectId + title`).
+
+Expected seed log output looks like:
+
+```text
+Seed data inserted successfully
+{ users: [ 'alice@example.com', 'bob@example.com' ], team: 'Study Group A', project: 'Semester Project', labels: [ 'Homework', 'Exam Prep' ], tasks: [ 'Design ER Diagram', 'Write Seed Script' ] }
 ```
 
-#### 4. Application Access
-- URL: http://localhost:3000
-- Health endpoint: http://localhost:3000/api/health
-- Verified app responds correctly
+### Verify Data (Prisma Studio)
 
-#### 5. Volume Persistence
 ```bash
 docker-compose down
 docker-compose up -d
@@ -665,97 +523,3 @@ This Docker setup provides a foundation for:
 **Assignment**: Cloud Deployments 101 - Docker & Compose
 
 >>>>>>> main
-
----
-
-## Prisma Transactions, Indexes & Optimization
-
-This project demonstrates database transactions, indexing, and query optimization using Prisma ORM. See schema and code links: [prisma/schema.prisma](prisma/schema.prisma), [lib/prisma.ts](lib/prisma.ts), [Transaction API](app/api/tasks/transaction/route.ts), [Optimized Tasks API](app/api/tasks/optimized/route.ts).
-
-### 1) Transaction Workflow (+ Rollback)
-
-- Endpoint: POST `/api/tasks/transaction`
-- Body:
-
-```json
-{
-  "projectId": 1,
-  "title": "My atomic task",
-  "description": "Created within a transaction",
-  "assigneeId": 1,
-  "priority": "HIGH",
-  "fail": false
-}
-```
-
-- Behavior: Creates a `Task` and an `ActivityLog` inside `prisma.$transaction`. If `fail=true`, an error is thrown to verify rollback (neither record persists).
-
-Quick test (PowerShell):
-
-```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks/transaction -Body (@{projectId=1; title='Tx demo'; fail=$false} | ConvertTo-Json) -ContentType 'application/json'
-Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks/transaction -Body (@{projectId=1; title='Tx rollback demo'; fail=$true} | ConvertTo-Json) -ContentType 'application/json'
-```
-
-Expected: first call returns `{ ok: true, ... }`; second returns `{ ok: false, message: "Intentional failure ..." }` and no partial writes.
-
-### 2) Optimized Queries (Select + Pagination + Batch)
-
-- Endpoint: GET `/api/tasks/optimized?projectId=1&status=TODO&take=20&skip=0`
-- Returns list with minimal fields (`select`) and `total` via an internal `$transaction`.
-- Supports `assigneeId`, `projectId`, `status`, `take` (≤100), `skip`.
-- Bulk create demo: POST `/api/tasks/optimized` with body `{ "projectId": 1, "count": 50 }` uses `createMany`.
-
-### 3) Indexes Added (Performance)
-
-We added composite indexes to speed up common filters and sorts:
-
-- `Task`: `@@index([status, createdAt])`, `@@index([assigneeId, status, createdAt])`
-- `Project`: `@@index([teamId, createdAt])`
-- `ActivityLog`: `@@index([projectId, createdAt])`, `@@index([teamId, createdAt])`
-
-Apply migration:
-
-```bash
-npm run prisma:generate
-npm run prisma:migrate:indexes
-```
-
-### 4) Benchmark: Before vs After
-
-Enable Prisma query logs:
-
-```bash
-npm run dev:debug
-```
-
-On Windows PowerShell if running the Next server directly:
-
-```powershell
-$env:DEBUG="prisma:query"; npm run dev
-```
-
-Then hit the same endpoint multiple times before and after running the index migration. Compare timing in server logs and/or run `EXPLAIN` in your SQL client for representative queries (e.g., filtering tasks by `assigneeId` + `status`).
-
-Suggested steps:
-
-- Record timings for `/api/tasks/optimized?assigneeId=1&status=TODO&take=20` pre-index
-- Run `npm run prisma:migrate:indexes`
-- Record timings again and note differences
-
-### 5) Anti-patterns Avoided
-
-- Over-fetching: we use `select` in list endpoints instead of large `include`s
-- N+1 queries: combine list + count in a single `$transaction` and avoid per-item lookups
-- Full table scans: add targeted, composite indexes for frequent filters/sorts
-
-### 6) Production Monitoring
-
-- Track: query latency (p95/p99), error rates, slow query logs, and timeouts
-- Tools: Prisma logs (`DEBUG=prisma:query`), database-level `EXPLAIN ANALYZE`, managed insights (e.g., Azure Database for PostgreSQL Performance Recommendations)
-- Alert on: rising latency, lock contention, connection pool saturation, and error spikes
-
-### Notes
-
-- Ensure `DATABASE_URL` is configured (see [lib/env.ts](lib/env.ts) and `.env*` files). Run migrations and seed before hitting endpoints.
-- The demo uses a fallback `actorId` in the transaction route; wire this to your auth user in real flows.
