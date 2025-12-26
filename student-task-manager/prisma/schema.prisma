@@ -122,6 +122,9 @@ model Task {
   @@index([projectId, status])
   @@index([assigneeId])
   @@index([dueDate])
+  // Added composite indexes to optimize dashboards and feeds
+  @@index([status, createdAt])
+  @@index([assigneeId, status, createdAt])
 }
 
 model Label {
@@ -181,4 +184,7 @@ model ActivityLog {
   @@index([taskId])
   @@index([projectId])
   @@index([teamId])
+  // Composite indexes to optimize timeline queries
+  @@index([projectId, createdAt])
+  @@index([teamId, createdAt])
 }
