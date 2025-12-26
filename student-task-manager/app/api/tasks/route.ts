@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { TaskStatus } from '@prisma/client';
+import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from '@/lib/responseHandler';
+import { ERROR_CODES } from '@/lib/errorCodes';
+
+// Type-safe task status values (matches Prisma schema)
+type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -43,10 +47,11 @@ export async function GET(req: NextRequest) {
       }),
       prisma.task.count({ where }),
     ]);
-    return NextResponse.json({ page, limit, total, items }, { status: 200 });
+
+    return sendPaginatedSuccess(items, total, page, limit, 'Tasks fetched successfully');
   } catch (error: any) {
-    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Query failed');
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }
 
@@ -54,9 +59,16 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { projectId, title, description, priority, assigneeId, dueDate } = body ?? {};
+
     if (!projectId || !title) {
-      return NextResponse.json({ error: 'projectId and title are required' }, { status: 400 });
+      return sendError(
+        'Missing required fields: projectId and title are required',
+        ERROR_CODES.MISSING_REQUIRED_FIELD,
+        400,
+        { missingFields: [!projectId && 'projectId', !title && 'title'].filter(Boolean) }
+      );
     }
+
     const task = await prisma.task.create({
       data: {
         projectId: Number(projectId),
@@ -68,9 +80,10 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true, title: true, status: true, priority: true, assigneeId: true, createdAt: true },
     });
-    return NextResponse.json({ message: 'Task created', task }, { status: 201 });
+
+    return sendSuccess(task, 'Task created successfully', 201);
   } catch (error: any) {
-    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Create failed');
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const { message, code, status } = handlePrismaError(error);
+    return sendError(message, code, status, error?.message);
   }
 }
