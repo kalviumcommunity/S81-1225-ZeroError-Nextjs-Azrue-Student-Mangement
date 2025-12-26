@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env.development -- node scripts/validate-env.mjs && dotenv -e .env.development -- next dev",
+    "dev:debug": "cross-env DEBUG=prisma:query npm run dev",
     "build": "npm run build:production",
     "build:staging": "cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- node scripts/validate-env.mjs && cross-env APP_ENV=staging NODE_ENV=production dotenv -e .env.staging -- next build",
     "build:production": "cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- node scripts/validate-env.mjs && cross-env APP_ENV=production NODE_ENV=production dotenv -e .env.production -- next build",
@@ -13,6 +14,7 @@
     "prepare": "husky",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev --name init_schema",
+    "prisma:migrate:indexes": "npx prisma migrate dev --name add_indexes_for_optimisation",
     "prisma:studio": "npx prisma studio",
     "db:seed": "npx prisma db seed"
   },
