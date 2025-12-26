@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
   // Optimize for production
   compress: true,
   
+  // Silence Turbopack root inference warning in monorepo/workspace setups
+  turbopack: {
+    root: __dirname,
+  },
+  
   // Place config customizations here as needed
 };
 
