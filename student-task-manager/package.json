@@ -15,6 +15,8 @@
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev --name init_schema",
     "prisma:migrate:indexes": "npx prisma migrate dev --name add_indexes_for_optimisation",
+    "prisma:migrate:dev": "dotenv -e .env.development -- npx prisma migrate dev --name init_schema",
+    "prisma:migrate:indexes:dev": "dotenv -e .env.development -- npx prisma migrate dev --name add_indexes_for_optimisation",
     "prisma:studio": "npx prisma studio",
     "db:seed": "npx prisma db seed"
   },

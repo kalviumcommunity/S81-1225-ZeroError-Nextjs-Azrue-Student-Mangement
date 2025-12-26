@@ -719,3 +719,73 @@ Suggested steps:
 - Ensure `DATABASE_URL` is configured (see [lib/env.ts](lib/env.ts) and `.env*` files). Run migrations and seed before hitting endpoints.
 - The demo uses a fallback `actorId` in the transaction route; wire this to your auth user in real flows.
 
+---
+
+## RESTful API Routes (Next.js App Router)
+
+### Route Hierarchy
+
+- Users:
+	- List/Create: `/api/users` → [users route](app/api/users/route.ts)
+	- Read/Update/Delete: `/api/users/[id]` → [users by id](app/api/users/[id]/route.ts)
+- Tasks:
+	- List/Create: `/api/tasks` → [tasks route](app/api/tasks/route.ts)
+	- Read/Update/Delete: `/api/tasks/[id]` → [tasks by id](app/api/tasks/[id]/route.ts)
+- Projects:
+	- List/Create: `/api/projects` → [projects route](app/api/projects/route.ts)
+	- Read/Update/Delete: `/api/projects/[id]` → [projects by id](app/api/projects/[id]/route.ts)
+
+### Verbs & Conventions
+
+- GET list: supports `page`, `limit` and resource-specific filters (e.g., `status`, `assigneeId`, `projectId`, `teamId`).
+- POST create: validates required fields and returns `201`.
+- GET by id: returns `404` if missing.
+- PUT update: partial updates; returns `404` if missing.
+- DELETE: soft delete not implemented; hard delete returns `200` or `404`.
+
+### Sample Requests (PowerShell)
+
+Users:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/users
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/users -Body (@{name='Alice'; email='alice@example.com'; passwordHash='demo'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/users/1
+Invoke-RestMethod -Method Put -Uri http://localhost:3000/api/users/1 -Body (@{name='Alice Updated'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Delete -Uri http://localhost:3000/api/users/1
+```
+
+Tasks:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/api/tasks?page=1&limit=10&status=TODO"
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks -Body (@{projectId=1; title='New Task'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/tasks/1
+Invoke-RestMethod -Method Put -Uri http://localhost:3000/api/tasks/1 -Body (@{status='IN_PROGRESS'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Delete -Uri http://localhost:3000/api/tasks/1
+```
+
+Projects:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/api/projects?page=1&limit=10&teamId=1"
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/projects -Body (@{teamId=1; ownerId=1; name='My Project'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/projects/1
+Invoke-RestMethod -Method Put -Uri http://localhost:3000/api/projects/1 -Body (@{name='Renamed Project'} | ConvertTo-Json) -ContentType 'application/json'
+Invoke-RestMethod -Method Delete -Uri http://localhost:3000/api/projects/1
+```
+
+### Error Semantics
+
+- `200` OK (GET, PUT, DELETE success)
+- `201` Created (POST success)
+- `400` Bad Request (missing required fields, invalid id, unique violations mapped where applicable)
+- `404` Not Found (missing record on GET/PUT/DELETE)
+- `500` Internal Server Error (unexpected issues, Prisma `P1001` reports DB not reachable)
+
+### Reflection
+
+- Consistent plural, resource-first paths and method-based actions keep integrations predictable.
+- Pagination and filters prevent over-fetching and align with scalable backends.
+- Clear error codes/messages reduce ambiguity and speed up client-side handling.
+

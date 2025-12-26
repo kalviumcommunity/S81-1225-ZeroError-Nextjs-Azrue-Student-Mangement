@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { TaskStatus } from '@prisma/client';
 
-// Optimized query endpoint: select only needed fields, supports filters + pagination
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const take = Math.min(Number(searchParams.get('take') ?? 20), 100);
-  const skip = Number(searchParams.get('skip') ?? 0);
+  const page = Math.max(1, Number(searchParams.get('page') ?? 1));
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 10)));
+  const skip = (page - 1) * limit;
+
   const statusParam = searchParams.get('status');
   const allowedStatus: TaskStatus[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
   const status: TaskStatus | undefined =
@@ -22,7 +23,6 @@ export async function GET(req: NextRequest) {
     ...(projectId ? { projectId: Number(projectId) } : {}),
   };
 
-  // Avoid over-fetching by selecting only fields needed in lists
   try {
     const [items, total] = await prisma.$transaction([
       prisma.task.findMany({
@@ -35,41 +35,42 @@ export async function GET(req: NextRequest) {
           dueDate: true,
           createdAt: true,
           assignee: { select: { id: true, name: true } },
+          projectId: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take,
+        take: limit,
       }),
       prisma.task.count({ where }),
     ]);
-    return NextResponse.json({ items, total, skip, take }, { status: 200 });
+    return NextResponse.json({ page, limit, total, items }, { status: 200 });
   } catch (error: any) {
-    const msg = error?.code === 'P1001'
-      ? 'Database is unreachable. Start PostgreSQL and run migrations.'
-      : (error?.message ?? 'Query failed');
+    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Query failed');
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
-// Bulk insert demo to show createMany performance
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const { projectId, count = 10 } = body ?? {};
-  if (!projectId) return NextResponse.json({ error: 'projectId required' }, { status: 400 });
-
-  const data = Array.from({ length: Math.min(count, 1000) }, (_, i) => ({
-    projectId: Number(projectId),
-    title: `Bulk Task ${i + 1}`,
-    priority: 'MEDIUM' as const,
-  }));
-
   try {
-    const result = await prisma.task.createMany({ data });
-    return NextResponse.json({ inserted: result.count }, { status: 201 });
+    const body = await req.json();
+    const { projectId, title, description, priority, assigneeId, dueDate } = body ?? {};
+    if (!projectId || !title) {
+      return NextResponse.json({ error: 'projectId and title are required' }, { status: 400 });
+    }
+    const task = await prisma.task.create({
+      data: {
+        projectId: Number(projectId),
+        title,
+        description: description ?? null,
+        priority: priority ?? undefined,
+        assigneeId: assigneeId ? Number(assigneeId) : null,
+        dueDate: dueDate ? new Date(dueDate) : null,
+      },
+      select: { id: true, title: true, status: true, priority: true, assigneeId: true, createdAt: true },
+    });
+    return NextResponse.json({ message: 'Task created', task }, { status: 201 });
   } catch (error: any) {
-    const msg = error?.code === 'P1001'
-      ? 'Database is unreachable. Start PostgreSQL and run migrations.'
-      : (error?.message ?? 'Bulk create failed');
+    const msg = error?.code === 'P1001' ? 'Database is unreachable. Start PostgreSQL and run migrations.' : (error?.message ?? 'Create failed');
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { TaskPriority } from '@prisma/client';
 
 // Transaction: create task + activity log; optional failure to verify rollback
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { projectId, title, description, assigneeId, priority, fail } = body ?? {};
+    const allowedPriority: TaskPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+    const priorityValue = priority && allowedPriority.includes(priority as TaskPriority) ? (priority as TaskPriority) : undefined;
 
     if (!projectId || !title) {
       return NextResponse.json({ error: 'projectId and title are required' }, { status: 400 });
@@ -17,7 +20,7 @@ export async function POST(req: NextRequest) {
           projectId: Number(projectId),
           title,
           description: description ?? null,
-          priority: priority ?? undefined,
+          priority: priorityValue,
           assigneeId: assigneeId ? Number(assigneeId) : null,
         },
         select: {
