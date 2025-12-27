@@ -2,6 +2,98 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ---
 
+## Authentication (Signup, Login, Protected Routes)
+
+This app implements a simple JWT-based authentication flow using bcrypt for password hashing and JSON Web Tokens for session tokens.
+
+### Flow Overview
+- User signs up via POST `/api/auth/signup` with `name`, `email`, `password`.
+- The server hashes the password with `bcrypt.hash(password, 10)` and stores `passwordHash`.
+- User logs in via POST `/api/auth/login` with `email`, `password`.
+- The server verifies with `bcrypt.compare()` and issues a JWT containing `id` and `email`.
+- Protected routes (e.g., GET `/api/users`) require `Authorization: Bearer <token>`.
+
+### Code Snippets
+Password hashing (signup):
+
+```ts
+import bcrypt from "bcryptjs";
+
+const passwordHash = await bcrypt.hash(password, 10);
+await prisma.user.create({ data: { name, email, passwordHash } });
+```
+
+JWT issue & verify:
+
+```ts
+import jwt from "jsonwebtoken";
+import { env } from "@/lib/env";
+
+// Issue token
+const token = jwt.sign({ id: user.id, email: user.email }, env.JWT_SECRET, { expiresIn: "1h" });
+
+// Verify token
+try {
+  const decoded = jwt.verify(token, env.JWT_SECRET);
+} catch (err) {
+  // handle invalid/expired token
+}
+```
+
+### Sample Requests
+Signup:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","password":"mypassword"}'
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@example.com","password":"mypassword"}'
+```
+
+Protected route:
+
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <YOUR_JWT_TOKEN>"
+```
+
+### Sample Responses
+Success (login):
+
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": { "token": "<jwt>" },
+  "timestamp": "2025-12-27T00:00:00.000Z"
+}
+```
+
+Failure (invalid credentials):
+
+```json
+{
+  "success": false,
+  "message": "Invalid credentials",
+  "error": { "code": "E104" },
+  "timestamp": "2025-12-27T00:00:00.000Z"
+}
+```
+
+### Reflection
+- Token expiry & refresh: tokens currently expire in 1 hour. For long-lived sessions, consider refresh tokens (short-lived access token + long-lived refresh token), with rotation and blacklist on logout.
+- Token storage (cookie vs localStorage): cookies (HTTP-only, Secure, SameSite) protect against XSS; localStorage is simpler but vulnerable to XSS. This demo uses `localStorage` for brevity; production should prefer HTTP-only cookies.
+- Security impact: authentication gates access to protected APIs, ensures users act on their own resources, and enables audit logging. Combine with role-based authorization for fine-grained control.
+
+---
+
 ## Production-Ready Environment & Secrets
 
 This application is configured for development, staging, and production with strict separation of public vs server-only variables and CI/CD-compatible builds.

@@ -2,8 +2,20 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
+import { getBearerToken, verifyToken } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const token = getBearerToken(authHeader);
+  if (!token) {
+    return sendError("Unauthorized: Missing Bearer token", ERROR_CODES.UNAUTHORIZED, 401);
+  }
+
+  const { valid, code } = verifyToken(token);
+  if (!valid) {
+    return sendError("Invalid or expired token", code ?? ERROR_CODES.INVALID_TOKEN, 401);
+  }
+
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") ?? 10)));
