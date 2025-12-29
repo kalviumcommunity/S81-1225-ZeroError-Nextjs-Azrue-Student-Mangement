@@ -2,19 +2,16 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
-import { getBearerToken, verifyToken } from "@/lib/auth";
 
+/**
+ * GET /api/users
+ * Protected route - accessible to all authenticated users
+ * User info is provided by middleware via headers
+ */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const token = getBearerToken(authHeader);
-  if (!token) {
-    return sendError("Unauthorized: Missing Bearer token", ERROR_CODES.UNAUTHORIZED, 401);
-  }
-
-  const { valid, code } = verifyToken(token);
-  if (!valid) {
-    return sendError("Invalid or expired token", code ?? ERROR_CODES.INVALID_TOKEN, 401);
-  }
+  // User info is attached by middleware after JWT verification
+  const userEmail = req.headers.get("x-user-email");
+  const userRole = req.headers.get("x-user-role");
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
@@ -24,7 +21,7 @@ export async function GET(req: NextRequest) {
   try {
     const [items, total] = await prisma.$transaction([
       prisma.user.findMany({
-        select: { id: true, name: true, email: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
@@ -32,7 +29,13 @@ export async function GET(req: NextRequest) {
       prisma.user.count(),
     ]);
 
-    return sendPaginatedSuccess(items, total, page, limit, "Users fetched successfully");
+    return sendPaginatedSuccess(
+      items,
+      total,
+      page,
+      limit,
+      `Users fetched successfully. Accessed by: ${userEmail} (${userRole})`
+    );
   } catch (error: any) {
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);

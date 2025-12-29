@@ -1405,3 +1405,640 @@ This approach demonstrates that **good API design is not just about functionalit
 
 ---
 
+## 🔐 Authorization Middleware & Role-Based Access Control (RBAC)
+
+This application implements a robust authorization middleware system that protects routes based on user roles and session validity. The middleware intercepts incoming requests, validates JWT tokens, and enforces role-based access control before routing to protected endpoints.
+
+### 🎯 Authentication vs Authorization
+
+| Concept | Description | Example |
+|---------|-------------|---------|
+| **Authentication** | Confirms who the user is | User logs in with valid credentials |
+| **Authorization** | Determines what actions they can perform | Only admins can access `/api/admin` |
+
+While authentication verifies identity (handled by `/api/auth/login`), authorization controls access to resources based on that identity.
+
+### 🏗️ Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Client Request                          │
+│                  Authorization: Bearer <token>                  │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Middleware (app/middleware.ts)               │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │ 1. Check if route requires protection                     │ │
+│  │    (/api/admin/* or /api/users/*)                         │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 2. Extract JWT from Authorization header                  │ │
+│  │    Bearer <token> → token                                 │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 3. Verify JWT signature & expiration                      │ │
+│  │    using jose library (Edge Runtime compatible)           │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 4. Check role-based permissions                           │ │
+│  │    /api/admin/* → requires role === "ADMIN"               │ │
+│  ├───────────────────────────────────────────────────────────┤ │
+│  │ 5. Attach user info to request headers                    │ │
+│  │    x-user-email, x-user-role                              │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                ┌────────────┴────────────┐
+                │                         │
+                ▼                         ▼
+    ┌───────────────────┐     ┌──────────────────┐
+    │   ✅ Authorized   │     │  ❌ Unauthorized │
+    │  Forward Request  │     │   Return 401/403 │
+    └─────────┬─────────┘     └──────────────────┘
+              │
+              ▼
+    ┌──────────────────────────────────┐
+    │      Protected API Route         │
+    │  - Access user info from headers │
+    │  - Process business logic        │
+    │  - Return response               │
+    └──────────────────────────────────┘
+```
+
+### 📁 File Structure
+
+```
+student-task-manager/
+├── app/
+│   ├── middleware.ts              # Authorization middleware (RBAC enforcement)
+│   └── api/
+│       ├── admin/
+│       │   └── route.ts           # Admin-only route (requires ADMIN role)
+│       ├── users/
+│       │   └── route.ts           # Protected route (all authenticated users)
+│       └── auth/
+│           ├── login/route.ts     # Public route (authentication)
+│           └── signup/route.ts    # Public route (registration)
+├── prisma/
+│   └── schema.prisma              # User model with role field
+└── lib/
+    └── responseHandler.ts         # Unified response format
+```
+
+### 🔧 User Roles in Database
+
+The `User` model in Prisma schema includes a `role` field with enum values:
+
+```prisma
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(MEMBER)  // Default role is MEMBER
+  // ... other fields
+}
+```
+
+**Role Hierarchy:**
+- **ADMIN**: Full system access, can access all routes including `/api/admin/*`
+- **MEMBER**: Standard user access, can access `/api/users/*` and other non-admin routes
+
+### 🛡️ Middleware Implementation
+
+**File:** `app/middleware.ts`
+
+```typescript
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
+
+const secret = new TextEncoder().encode(
+  process.env.JWT_SECRET || "supersecretkey"
+);
+
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Only protect specific routes
+  if (pathname.startsWith("/api/admin") || pathname.startsWith("/api/users")) {
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.split(" ")[1];
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Token missing" },
+        { status: 401 }
+      );
+    }
+
+    try {
+      const { payload } = await jwtVerify(token, secret);
+
+      // Role-based access control
+      if (pathname.startsWith("/api/admin") && payload.role !== "ADMIN") {
+        return NextResponse.json(
+          { success: false, message: "Access denied" },
+          { status: 403 }
+        );
+      }
+
+      // Attach user info for downstream handlers
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set("x-user-email", String(payload.email));
+      requestHeaders.set("x-user-role", String(payload.role));
+
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Invalid or expired token" },
+        { status: 403 }
+      );
+    }
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
+```
+
+**Key Features:**
+1. **JWT Verification**: Uses `jose` library (Edge Runtime compatible) instead of `jsonwebtoken`
+2. **Role-Based Checks**: Validates user role against route requirements
+3. **Header Injection**: Passes user info to downstream routes via custom headers
+4. **Selective Protection**: Only runs on specified routes (configurable via `matcher`)
+
+### 🎯 Protected Routes
+
+#### Admin-Only Route
+
+**File:** `app/api/admin/route.ts`
+
+```typescript
+import { NextRequest } from "next/server";
+import { sendSuccess } from "@/lib/responseHandler";
+
+export async function GET(req: NextRequest) {
+  const userEmail = req.headers.get("x-user-email");
+  const userRole = req.headers.get("x-user-role");
+
+  return sendSuccess(
+    {
+      user: { email: userEmail, role: userRole },
+      adminFeatures: [
+        "User Management",
+        "System Configuration",
+        "Analytics Dashboard",
+        "Audit Logs",
+      ],
+    },
+    "Welcome Admin! You have full access.",
+    200
+  );
+}
+```
+
+**Access Requirements:**
+- ✅ Valid JWT token
+- ✅ Role must be `ADMIN`
+
+#### General Protected Route
+
+**File:** `app/api/users/route.ts`
+
+```typescript
+export async function GET(req: NextRequest) {
+  const userEmail = req.headers.get("x-user-email");
+  const userRole = req.headers.get("x-user-role");
+
+  // Fetch users with pagination
+  const [items, total] = await prisma.$transaction([
+    prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.user.count(),
+  ]);
+
+  return sendPaginatedSuccess(
+    items, 
+    total, 
+    page, 
+    limit, 
+    `Users fetched successfully. Accessed by: ${userEmail} (${userRole})`
+  );
+}
+```
+
+**Access Requirements:**
+- ✅ Valid JWT token
+- ✅ Any authenticated role (ADMIN or MEMBER)
+
+### 🧪 Testing Role-Based Access
+
+#### 1. Create Test Users
+
+First, create users with different roles:
+
+**Admin User:**
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "password": "admin123",
+    "role": "ADMIN"
+  }'
+```
+
+**Regular User:**
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Regular User",
+    "email": "user@example.com",
+    "password": "user123"
+  }'
+```
+
+#### 2. Login and Get Tokens
+
+**Admin Login:**
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "admin123"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": 1,
+      "name": "Admin User",
+      "email": "admin@example.com",
+      "role": "ADMIN"
+    }
+  },
+  "timestamp": "2025-12-29T07:52:00.000Z"
+}
+```
+
+**User Login:**
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "user123"
+  }'
+```
+
+#### 3. Test Admin Route Access
+
+**✅ Admin Access (Should Succeed):**
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "Welcome Admin! You have full access.",
+  "data": {
+    "user": {
+      "email": "admin@example.com",
+      "role": "ADMIN"
+    },
+    "adminFeatures": [
+      "User Management",
+      "System Configuration",
+      "Analytics Dashboard",
+      "Audit Logs"
+    ]
+  },
+  "timestamp": "2025-12-29T07:52:00.000Z"
+}
+```
+
+**❌ Regular User Access (Should Fail):**
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer <USER_TOKEN>"
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "Access denied",
+  "timestamp": "2025-12-29T07:52:00.000Z"
+}
+```
+**Status Code:** `403 Forbidden`
+
+#### 4. Test Users Route Access
+
+**✅ Admin Access (Should Succeed):**
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+**✅ Regular User Access (Should Succeed):**
+```bash
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer <USER_TOKEN>"
+```
+
+**Expected Response (Both):**
+```json
+{
+  "success": true,
+  "message": "Users fetched successfully. Accessed by: user@example.com (MEMBER)",
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "name": "Admin User",
+        "email": "admin@example.com",
+        "role": "ADMIN",
+        "createdAt": "2025-12-29T07:00:00.000Z"
+      },
+      {
+        "id": 2,
+        "name": "Regular User",
+        "email": "user@example.com",
+        "role": "MEMBER",
+        "createdAt": "2025-12-29T07:01:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 2,
+      "totalPages": 1,
+      "hasNextPage": false,
+      "hasPreviousPage": false
+    }
+  },
+  "timestamp": "2025-12-29T07:52:00.000Z"
+}
+```
+
+#### 5. Test Missing/Invalid Token
+
+**❌ No Token:**
+```bash
+curl -X GET http://localhost:3000/api/admin
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "Token missing"
+}
+```
+**Status Code:** `401 Unauthorized`
+
+**❌ Invalid Token:**
+```bash
+curl -X GET http://localhost:3000/api/admin \
+  -H "Authorization: Bearer invalid_token_here"
+```
+
+**Expected Response:**
+```json
+{
+  "success": false,
+  "message": "Invalid or expired token"
+}
+```
+**Status Code:** `403 Forbidden`
+
+### 📊 Access Control Matrix
+
+| Route | Public | MEMBER | ADMIN |
+|-------|--------|--------|-------|
+| `POST /api/auth/signup` | ✅ | ✅ | ✅ |
+| `POST /api/auth/login` | ✅ | ✅ | ✅ |
+| `GET /api/health` | ✅ | ✅ | ✅ |
+| `GET /api/users` | ❌ | ✅ | ✅ |
+| `POST /api/users` | ❌ | ✅ | ✅ |
+| `GET /api/admin` | ❌ | ❌ | ✅ |
+| `GET /api/tasks` | ❌ | ✅ | ✅ |
+| `GET /api/projects` | ❌ | ✅ | ✅ |
+
+### 🔒 Security Best Practices
+
+#### 1. Least Privilege Principle
+
+Users should only have access to resources necessary for their role:
+
+```typescript
+// ✅ Good: Explicit role checks
+if (pathname.startsWith("/api/admin") && payload.role !== "ADMIN") {
+  return NextResponse.json({ success: false, message: "Access denied" }, { status: 403 });
+}
+
+// ❌ Bad: Allowing all authenticated users to admin routes
+if (pathname.startsWith("/api/admin") && !payload) {
+  return NextResponse.json({ success: false, message: "Access denied" }, { status: 403 });
+}
+```
+
+#### 2. Token Expiration
+
+Set appropriate token expiration times:
+
+```typescript
+// In login route
+const token = jwt.sign(
+  { id: user.id, email: user.email, role: user.role },
+  env.JWT_SECRET,
+  { expiresIn: "24h" }  // 24-hour expiration
+);
+```
+
+#### 3. Secure Headers
+
+Never expose sensitive information in response headers:
+
+```typescript
+// ✅ Good: Internal headers for server-side use
+requestHeaders.set("x-user-email", String(payload.email));
+requestHeaders.set("x-user-role", String(payload.role));
+
+// ❌ Bad: Exposing tokens or passwords
+requestHeaders.set("x-user-password", user.password);  // NEVER DO THIS
+```
+
+#### 4. HTTP Status Codes
+
+Use appropriate status codes for different scenarios:
+
+- `401 Unauthorized`: Missing or invalid authentication credentials
+- `403 Forbidden`: Valid credentials but insufficient permissions
+- `200 OK`: Successful request
+- `500 Internal Server Error`: Server-side errors
+
+### 🚀 Extending the System
+
+#### Adding New Roles
+
+1. **Update Prisma Schema:**
+
+```prisma
+enum UserRole {
+  ADMIN
+  MEMBER
+  MODERATOR  // New role
+  EDITOR     // New role
+}
+```
+
+2. **Run Migration:**
+
+```bash
+npx prisma migrate dev --name add_new_roles
+```
+
+3. **Update Middleware Logic:**
+
+```typescript
+// Add role-specific checks
+if (pathname.startsWith("/api/moderator") && payload.role !== "MODERATOR" && payload.role !== "ADMIN") {
+  return NextResponse.json({ success: false, message: "Access denied" }, { status: 403 });
+}
+```
+
+#### Adding Route-Specific Permissions
+
+```typescript
+// Example: Only allow ADMIN and EDITOR to create posts
+if (pathname === "/api/posts" && req.method === "POST") {
+  const allowedRoles = ["ADMIN", "EDITOR"];
+  if (!allowedRoles.includes(String(payload.role))) {
+    return NextResponse.json(
+      { success: false, message: "Insufficient permissions to create posts" },
+      { status: 403 }
+    );
+  }
+}
+```
+
+### 📸 Testing Screenshots & Logs
+
+#### Successful Admin Access
+```
+✅ GET /api/admin
+Status: 200 OK
+User: admin@example.com (ADMIN)
+Response: "Welcome Admin! You have full access."
+```
+
+#### Denied Admin Access
+```
+❌ GET /api/admin
+Status: 403 Forbidden
+User: user@example.com (MEMBER)
+Response: "Access denied"
+```
+
+#### Missing Token
+```
+❌ GET /api/users
+Status: 401 Unauthorized
+Response: "Token missing"
+```
+
+### 🎓 Key Learnings & Reflection
+
+#### Why Middleware for Authorization?
+
+1. **Centralized Logic**: All authorization checks in one place, reducing code duplication
+2. **Consistency**: Ensures uniform security across all protected routes
+3. **Maintainability**: Easy to update access rules without modifying individual routes
+4. **Performance**: Validates tokens once before reaching route handlers
+5. **Separation of Concerns**: Routes focus on business logic, middleware handles security
+
+#### Challenges Faced
+
+1. **Edge Runtime Compatibility**: 
+   - **Problem**: `jsonwebtoken` library doesn't work in Next.js Edge Runtime
+   - **Solution**: Switched to `jose` library which is Edge-compatible
+
+2. **Header Propagation**:
+   - **Problem**: Passing user info from middleware to route handlers
+   - **Solution**: Used custom headers (`x-user-email`, `x-user-role`) to inject user context
+
+3. **Role Enum Consistency**:
+   - **Problem**: Ensuring role values match between Prisma schema and JWT payload
+   - **Solution**: Used TypeScript enums and strict type checking
+
+#### Production Considerations
+
+1. **Rate Limiting**: Add rate limiting to prevent brute force attacks
+2. **Audit Logging**: Log all access attempts (successful and failed) for security monitoring
+3. **Token Refresh**: Implement refresh tokens for long-lived sessions
+4. **Multi-Factor Authentication**: Add MFA for admin accounts
+5. **IP Whitelisting**: Restrict admin access to specific IP ranges
+6. **Session Management**: Track active sessions and allow users to revoke tokens
+
+#### Benefits Summary
+
+| Aspect | Before Middleware | After Middleware |
+|--------|------------------|------------------|
+| **Code Duplication** | Token verification in every route | Single middleware handles all |
+| **Security Consistency** | Varies by route implementation | Uniform across all routes |
+| **Maintenance** | Update multiple files for changes | Update one middleware file |
+| **Testing** | Test each route individually | Test middleware once |
+| **Onboarding** | Learn each route's auth logic | Understand one pattern |
+| **Audit Trail** | Scattered across routes | Centralized in middleware |
+
+### 🔗 Related Documentation
+
+- [Authentication (Signup, Login, Protected Routes)](#authentication-signup-login-protected-routes)
+- [Global API Response Handler](#global-api-response-handler)
+- [Production-Ready Environment & Secrets](#production-ready-environment--secrets)
+- [Database Schema (PostgreSQL + Prisma)](#database-schema-postgresql--prisma)
+
+### 📝 Summary
+
+This authorization middleware implementation demonstrates:
+
+✅ **Robust Security**: JWT verification with role-based access control  
+✅ **Clean Architecture**: Separation of authentication and authorization concerns  
+✅ **Developer Experience**: Simple, consistent pattern for protecting routes  
+✅ **Scalability**: Easy to extend with new roles and permissions  
+✅ **Production-Ready**: Comprehensive error handling and security best practices  
+
+The middleware acts as a **security gateway**, ensuring that only authorized users can access protected resources while maintaining clean, maintainable code across the application.
+
+---
+
