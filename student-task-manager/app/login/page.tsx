@@ -8,10 +8,28 @@ export default function LoginPage() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 
-	function handleSubmit(e: React.FormEvent) {
+	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		// Week 1: no real auth yet. Stub login then navigate.
-		router.push("/dashboard");
+		try {
+			const res = await fetch("/api/auth/login", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email, password }),
+			});
+			const json = await res.json();
+			if (!json.success) {
+				alert(json.message || "Login failed");
+				return;
+			}
+			const token = json.data?.token;
+			if (token) {
+				// Basic storage for demo; see README for trade-offs
+				localStorage.setItem("auth_token", token);
+			}
+			router.push("/dashboard");
+		} catch (err: any) {
+			alert(err?.message || "Unexpected error");
+		}
 	}
 
 	return (

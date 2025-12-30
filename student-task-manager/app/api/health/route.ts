@@ -1,13 +1,11 @@
-import { NextResponse } from 'next/server';
+import { sendSuccess } from '@/lib/responseHandler';
 
 export async function GET() {
-    return NextResponse.json(
-        {
-            status: 'healthy',
-            timestamp: new Date().toISOString(),
-            service: 'student-task-manager',
-            environment: process.env.NODE_ENV || 'development',
-        },
-        { status: 200 }
-    );
+    const healthData = {
+        status: 'healthy',
+        service: 'student-task-manager',
+        environment: process.env.NODE_ENV || 'development',
+    };
+
+    return sendSuccess(healthData, 'Service is healthy');
 }
