@@ -94,6 +94,495 @@ Failure (invalid credentials):
 
 ---
 
+## Error Handling Middleware
+
+This application implements a **centralized error handling middleware** that provides consistent, structured error responses across all API routes. The system ensures that errors are properly logged for developers while keeping user-facing messages safe and minimal in production.
+
+### Why Centralized Error Handling Matters
+
+Modern web applications can fail in many ways — from API timeouts to database connection issues. Without a centralized strategy, errors become scattered, logs inconsistent, and debugging difficult.
+
+**Benefits of Centralized Error Handling:**
+
+- **Consistency**: Every error follows a uniform response format
+- **Security**: Sensitive stack traces are hidden in production
+- **Observability**: Structured logs make debugging and monitoring easier
+- **Maintainability**: Single source of truth for error handling logic
+
+### Environment Behavior
+
+| Environment | Behavior |
+|-------------|----------|
+| **Development** | Show detailed error messages and full stack traces |
+| **Production** | Log detailed errors internally, send minimal user-safe messages |
+
+### Architecture
+
+The error handling system consists of three main components:
+
+```
+lib/
+ ├── logger.ts          # Structured logging utility
+ ├── errorHandler.ts    # Centralized error handler
+ └── errorCodes.ts      # Error code dictionary
+```
+
+### 1. Structured Logger (`lib/logger.ts`)
+
+The logger provides consistent, JSON-formatted logging for easy parsing and integration with monitoring tools like CloudWatch, Datadog, or ELK stack.
+
+```ts
+import { logger } from "@/lib/logger";
+
+// Log informational messages
+logger.info("User logged in", { userId: 123, email: "user@example.com" });
+
+// Log errors with context
+logger.error("Database query failed", { 
+  query: "SELECT * FROM users", 
+  error: err.message 
+});
+
+// Log warnings
+logger.warn("API rate limit approaching", { 
+  currentRequests: 95, 
+  limit: 100 
+});
+```
+
+**Log Output Format:**
+
+```json
+{
+  "level": "error",
+  "message": "Database query failed",
+  "meta": {
+    "query": "SELECT * FROM users",
+    "error": "Connection timeout"
+  },
+  "timestamp": "2025-12-30T07:30:00.000Z",
+  "environment": "production"
+}
+```
+
+### 2. Centralized Error Handler (`lib/errorHandler.ts`)
+
+The error handler categorizes and processes different types of errors, providing appropriate responses based on the error type and environment.
+
+**Supported Error Types:**
+
+- **Validation Errors** (Zod): Returns field-level validation errors
+- **Database Errors** (Prisma): Maps Prisma error codes to user-friendly messages
+- **Custom Application Errors**: Uses `AppError` class for business logic errors
+- **Generic Errors**: Catches all other unexpected errors
+
+**Basic Usage:**
+
+```ts
+import { handleError } from "@/lib/errorHandler";
+
+export async function GET(req: NextRequest) {
+  try {
+    // Your API logic
+    const users = await prisma.user.findMany();
+    return sendSuccess(users, "Users fetched successfully");
+  } catch (error) {
+    return handleError(error, "GET /api/users");
+  }
+}
+```
+
+**Advanced Usage with Context:**
+
+```ts
+import { handleError, AppError } from "@/lib/errorHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await getUser();
+    
+    if (!user.isAdmin) {
+      throw new AppError(
+        "Insufficient permissions", 
+        ERROR_CODES.FORBIDDEN, 
+        403
+      );
+    }
+    
+    // Delete logic...
+  } catch (error) {
+    return handleError(error, {
+      route: "DELETE /api/users",
+      userId: user.id,
+      requestId: req.headers.get("x-request-id"),
+    });
+  }
+}
+```
+
+### 3. Error Codes (`lib/errorCodes.ts`)
+
+Centralized error code dictionary for consistent error tracking across the application.
+
+```ts
+import { ERROR_CODES } from "@/lib/errorCodes";
+
+// Validation errors (E001-E099)
+ERROR_CODES.VALIDATION_ERROR        // "E001"
+ERROR_CODES.MISSING_REQUIRED_FIELD  // "E002"
+
+// Auth errors (E100-E199)
+ERROR_CODES.UNAUTHORIZED            // "E100"
+ERROR_CODES.FORBIDDEN               // "E101"
+ERROR_CODES.INVALID_TOKEN           // "E102"
+
+// Resource errors (E200-E299)
+ERROR_CODES.NOT_FOUND               // "E200"
+ERROR_CODES.USER_NOT_FOUND          // "E202"
+
+// Database errors (E300-E399)
+ERROR_CODES.DATABASE_ERROR          // "E300"
+ERROR_CODES.DUPLICATE_ENTRY         // "E302"
+
+// Server errors (E500-E599)
+ERROR_CODES.INTERNAL_ERROR          // "E500"
+```
+
+### Testing in Different Environments
+
+#### Development Mode
+
+**Request:**
+
+```bash
+curl -X GET http://localhost:3000/api/users
+```
+
+**Response (with error):**
+
+```json
+{
+  "success": false,
+  "message": "Database connection failed!",
+  "error": {
+    "code": "E304",
+    "stack": "Error: Database connection failed!\n    at GET (/app/api/users/route.ts:25:11)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"
+  },
+  "timestamp": "2025-12-30T07:45:00.000Z"
+}
+```
+
+**Console Log:**
+
+```json
+{
+  "level": "error",
+  "message": "Error in GET /api/users",
+  "meta": {
+    "route": "GET /api/users",
+    "userId": "alice@example.com",
+    "message": "Database connection failed!",
+    "stack": "Error: Database connection failed!\n    at GET (/app/api/users/route.ts:25:11)..."
+  },
+  "timestamp": "2025-12-30T07:45:00.000Z",
+  "environment": "development"
+}
+```
+
+#### Production Mode (`NODE_ENV=production`)
+
+**Request:**
+
+```bash
+curl -X GET https://api.example.com/api/users
+```
+
+**Response (same error):**
+
+```json
+{
+  "success": false,
+  "message": "Something went wrong. Please try again later.",
+  "error": {
+    "code": "E304"
+  },
+  "timestamp": "2025-12-30T07:45:00.000Z"
+}
+```
+
+**Console Log (CloudWatch/Datadog):**
+
+```json
+{
+  "level": "error",
+  "message": "Error in GET /api/users",
+  "meta": {
+    "route": "GET /api/users",
+    "userId": "alice@example.com",
+    "message": "Database connection failed!",
+    "stack": "REDACTED"
+  },
+  "timestamp": "2025-12-30T07:45:00.000Z",
+  "environment": "production"
+}
+```
+
+### Comparison: Development vs Production
+
+| Aspect | Development | Production |
+|--------|-------------|------------|
+| **Error Message** | Full error message with details | Generic, user-safe message |
+| **Stack Trace** | Full stack trace in response | Redacted (logged internally only) |
+| **Error Details** | Validation errors with field names | Minimal error code only |
+| **Prisma Codes** | Exposed in response | Hidden (logged only) |
+| **Logging** | Full stack traces in logs | Stack traces marked as "REDACTED" |
+
+### Real-World Examples
+
+#### Example 1: Validation Error (Zod)
+
+```ts
+import { z } from "zod";
+import { handleError } from "@/lib/errorHandler";
+
+const userSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  age: z.number().min(18),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const data = userSchema.parse(body); // Throws ZodError if invalid
+    // ... create user
+  } catch (error) {
+    return handleError(error, "POST /api/users");
+  }
+}
+```
+
+**Development Response:**
+
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": {
+    "code": "E001",
+    "details": [
+      { "field": "name", "message": "String must contain at least 2 character(s)" },
+      { "field": "email", "message": "Invalid email" }
+    ]
+  },
+  "timestamp": "2025-12-30T08:00:00.000Z"
+}
+```
+
+#### Example 2: Database Error (Prisma)
+
+```ts
+export async function POST(req: NextRequest) {
+  try {
+    const user = await prisma.user.create({
+      data: { email: "duplicate@example.com", name: "Test" }
+    });
+    // Throws P2002 if email already exists
+  } catch (error) {
+    return handleError(error, "POST /api/users");
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": false,
+  "message": "A record with this email already exists.",
+  "error": {
+    "code": "E302"
+  },
+  "timestamp": "2025-12-30T08:00:00.000Z"
+}
+```
+
+#### Example 3: Custom Application Error
+
+```ts
+import { AppError } from "@/lib/errorHandler";
+import { ERROR_CODES } from "@/lib/errorCodes";
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getCurrentUser(req);
+    const task = await prisma.task.findUnique({ where: { id: params.id } });
+    
+    if (task.assigneeId !== user.id) {
+      throw new AppError(
+        "You can only delete your own tasks",
+        ERROR_CODES.FORBIDDEN,
+        403
+      );
+    }
+    
+    await prisma.task.delete({ where: { id: params.id } });
+    return sendSuccess(null, "Task deleted successfully");
+  } catch (error) {
+    return handleError(error, {
+      route: "DELETE /api/tasks/:id",
+      userId: user.id,
+      taskId: params.id,
+    });
+  }
+}
+```
+
+### Screenshots & Logs
+
+#### Development Console Output
+
+When an error occurs in development, you'll see structured JSON logs:
+
+```
+{"level":"error","message":"Error in GET /api/users","meta":{"route":"GET /api/users","userId":"alice@example.com","message":"Database connection failed!","stack":"Error: Database connection failed!\n    at GET (/app/api/users/route.ts:25:11)..."},"timestamp":"2025-12-30T07:45:00.000Z","environment":"development"}
+```
+
+#### Production CloudWatch Logs
+
+In production, logs are structured for easy querying:
+
+```json
+{
+  "level": "error",
+  "message": "Database error in GET /api/users",
+  "meta": {
+    "route": "GET /api/users",
+    "userId": "alice@example.com",
+    "prismaCode": "P1001",
+    "message": "Can't reach database server",
+    "stack": "REDACTED"
+  },
+  "timestamp": "2025-12-30T07:45:00.000Z",
+  "environment": "production"
+}
+```
+
+### Reflection
+
+#### How Structured Logs Aid Debugging
+
+1. **Searchability**: JSON logs can be easily queried in log aggregation tools
+   - Example: Find all errors for a specific user: `meta.userId:"alice@example.com"`
+   - Example: Find all database errors: `meta.prismaCode:P*`
+
+2. **Context Preservation**: Each log includes relevant context (route, user, request ID)
+   - Makes it easy to trace the full request lifecycle
+   - Helps identify patterns in errors
+
+3. **Automated Alerting**: Structured logs enable automated monitoring
+   - Alert when error rate exceeds threshold
+   - Notify team when specific error codes appear
+
+#### Why Redacting Sensitive Data Builds User Trust
+
+1. **Security**: Stack traces can expose:
+   - Internal file structure and architecture
+   - Database schema and query patterns
+   - Third-party service endpoints
+   - Environment variable names
+
+2. **Professionalism**: Generic error messages:
+   - Don't overwhelm non-technical users
+   - Prevent information leakage to potential attackers
+   - Maintain a polished user experience
+
+3. **Compliance**: Many regulations (GDPR, HIPAA) require:
+   - Minimal information disclosure
+   - Proper error logging and auditing
+   - Protection of sensitive system information
+
+#### Extending the Handler for Custom Error Types
+
+The error handler can be easily extended to support custom error types:
+
+```ts
+// In errorHandler.ts
+
+// Add custom error type detection
+if (error instanceof AuthenticationError) {
+  statusCode = 401;
+  errorResponse = {
+    success: false,
+    message: isProd ? "Authentication failed" : error.message,
+    error: { code: ERROR_CODES.UNAUTHORIZED },
+    timestamp: new Date().toISOString(),
+  };
+  
+  logger.error(`Auth error in ${contextStr}`, {
+    ...contextMeta,
+    authMethod: error.authMethod,
+    stack: isProd ? "REDACTED" : error.stack,
+  });
+  
+  return NextResponse.json(errorResponse, { status: statusCode });
+}
+```
+
+**Custom Error Classes:**
+
+```ts
+export class ValidationError extends Error {
+  fields: Record<string, string>;
+  
+  constructor(message: string, fields: Record<string, string>) {
+    super(message);
+    this.name = "ValidationError";
+    this.fields = fields;
+  }
+}
+
+export class AuthenticationError extends Error {
+  authMethod: string;
+  
+  constructor(message: string, authMethod: string) {
+    super(message);
+    this.name = "AuthenticationError";
+    this.authMethod = authMethod;
+  }
+}
+```
+
+### Best Practices
+
+1. **Always use `handleError` in catch blocks**: Ensures consistent error handling
+2. **Provide context**: Include route, user ID, and other relevant metadata
+3. **Use `AppError` for business logic errors**: Makes error handling explicit
+4. **Log before throwing**: Add context logs before throwing custom errors
+5. **Monitor error codes**: Track error code frequency to identify systemic issues
+6. **Test both environments**: Verify error responses in dev and production modes
+
+### Testing Error Handling
+
+```bash
+# Test validation error
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"A","email":"invalid"}'
+
+# Test database error (duplicate)
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"existing@example.com","passwordHash":"hash"}'
+
+# Test custom error (unauthorized)
+curl -X DELETE http://localhost:3000/api/tasks/123 \
+  -H "Authorization: Bearer invalid_token"
+```
+
+---
+
 ## Production-Ready Environment & Secrets
 
 This application is configured for development, staging, and production with strict separation of public vs server-only variables and CI/CD-compatible builds.
