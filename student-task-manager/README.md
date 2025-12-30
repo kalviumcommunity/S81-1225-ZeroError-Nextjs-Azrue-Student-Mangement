@@ -887,6 +887,81 @@ docker exec -it postgres_db psql -U postgres -d mydb -c "SELECT * FROM students;
 
 # Test Redis connection
 docker exec -it redis_cache redis-cli ping
+
+---
+
+## Cloud Uploads (Presigned URLs)
+
+This app supports direct-to-cloud uploads via short-lived presigned URLs so the backend never handles file bytes nor exposes long-lived credentials.
+
+### Flow Diagram
+
+```
+Client  --(POST filename,type,size)-->  Next API /api/upload
+           <-(JSON presigned PUT URL)--
+Client  --(PUT file to URL: S3)------->  AWS S3 (ACL: public-read)
+Client  --(POST name+publicURL)------>  Next API /api/files
+DB      <---- stores metadata (name, url, size, mime)
+```
+
+### URL Generation (Backend)
+- Endpoint: [app/api/upload/route.ts](app/api/upload/route.ts)
+- Packages: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`
+- Env: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_BUCKET_NAME`
+
+Key validation:
+- Allows `image/*` and `application/pdf` only
+- Optional max size ~25MB when `fileSize` is provided
+- URL expiry: 60 seconds (reduce risk window)
+
+### File Upload (Client or Postman)
+
+```bash
+curl -X PUT "<UPLOAD_URL>" \
+  -H "Content-Type: image/png" \
+  -H "x-amz-acl: public-read" \
+  --upload-file "./profile.png"
+```
+
+S3 object should be publicly readable. Configure bucket policy or object ACL accordingly. For Azure Blob, set container access level to "Blob (anonymous read)".
+
+### Store Link in DB (Backend)
+- Endpoint: [app/api/files/route.ts](app/api/files/route.ts)
+
+```bash
+curl -X POST http://localhost:3000/api/files \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fileName": "profile.png",
+    "fileURL": "https://<bucket>.s3.<region>.amazonaws.com/profile.png",
+    "fileSize": 12345,
+    "mimeType": "image/png"
+  }'
+```
+
+Prisma model `File` persists `name`, `url` (unique), optional `size`, `mimeType`. Run:
+
+```bash
+npx prisma generate
+npx prisma migrate dev --name add-file-model
+```
+
+### Screenshots & Verification
+- Confirm S3/Azure dashboard shows the uploaded object in the correct container/bucket.
+- Open the public URL in the browser to verify accessibility.
+- Test small (<1MB) and larger files; confirm metadata saved in DB.
+
+### Notes & Rationale
+- Type/size validation: ensures only permitted content reaches storage; size limit prevents abuse and cost spikes.
+- Expiry: short (60s) reduces the window for misuse; regenerate on demand.
+- Public vs private: public-read simplifies demo access but is a security trade-off; prefer private with signed GET in production.
+- Lifecycle policies: auto-delete after 30 days lowers storage cost and limits long-term exposure of public assets.
+
+### Azure Alternative
+If using Azure Blob instead of S3, install `@azure/storage-blob` and configure:
+- Env: `AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_ACCOUNT_KEY`, `AZURE_CONTAINER_NAME`
+- Use a SAS token for uploads and set container to `Blob` access level for anonymous reads.
+
 # Expected: PONG
 
 # Check service health status
