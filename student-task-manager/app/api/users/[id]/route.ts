@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { deleteCachePattern } from '@/lib/cache';
+import { logger } from '@/lib/logger';
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const id = Number(params.id);
@@ -28,6 +30,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       data: { ...(name ? { name } : {}), ...(email ? { email } : {}) },
       select: { id: true, name: true, email: true, createdAt: true },
     });
+
+    // Invalidate cache after user update
+    await deleteCachePattern('users:list:*');
+    logger.info('Cache invalidated after user update', { userId: id });
+
     return NextResponse.json({ message: 'User updated', user }, { status: 200 });
   } catch (error: any) {
     if (error?.code === 'P2025') return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -42,6 +49,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   try {
     await prisma.user.delete({ where: { id } });
+
+    // Invalidate cache after user deletion
+    await deleteCachePattern('users:list:*');
+    logger.info('Cache invalidated after user deletion', { userId: id });
+
     return NextResponse.json({ message: 'User deleted' }, { status: 200 });
   } catch (error: any) {
     if (error?.code === 'P2025') return NextResponse.json({ error: 'Not found' }, { status: 404 });

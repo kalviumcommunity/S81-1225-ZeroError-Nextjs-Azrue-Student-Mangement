@@ -4,6 +4,7 @@ import { sendSuccess, sendPaginatedSuccess } from "@/lib/responseHandler";
 import { handleError, AppError } from "@/lib/errorHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
 import { logger } from "@/lib/logger";
+import { cacheAside, generateCacheKey, deleteCachePattern } from "@/lib/cache";
 
 /**
  * GET /api/users
@@ -11,6 +12,7 @@ import { logger } from "@/lib/logger";
  * User info is provided by middleware via headers
  * 
  * Demonstrates centralized error handling with structured logging
+ * Implements Redis caching with cache-aside pattern for performance optimization
  */
 export async function GET(req: NextRequest) {
   try {
@@ -30,27 +32,42 @@ export async function GET(req: NextRequest) {
       limit,
     });
 
-    const [items, total] = await prisma.$transaction([
-      prisma.user.findMany({
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-      }),
-      prisma.user.count(),
-    ]);
+    // Generate cache key based on pagination params
+    const cacheKey = generateCacheKey("users", "list", page, limit);
+
+    // Use cache-aside pattern: check cache first, fetch from DB on miss
+    const result = await cacheAside(
+      cacheKey,
+      async () => {
+        logger.info("Cache miss - Fetching from database", { cacheKey });
+
+        const [items, total] = await prisma.$transaction([
+          prisma.user.findMany({
+            select: { id: true, name: true, email: true, role: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: limit,
+          }),
+          prisma.user.count(),
+        ]);
+
+        return { items, total, page, limit };
+      },
+      { ttl: 60 } // Cache for 60 seconds
+    );
 
     logger.info("Users fetched successfully", {
-      count: items.length,
-      total,
-      page,
+      count: result.items.length,
+      total: result.total,
+      page: result.page,
+      cached: true,
     });
 
     return sendPaginatedSuccess(
-      items,
-      total,
-      page,
-      limit,
+      result.items,
+      result.total,
+      result.page,
+      result.limit,
       `Users fetched successfully. Accessed by: ${userEmail} (${userRole})`
     );
   } catch (error) {
@@ -66,6 +83,7 @@ export async function GET(req: NextRequest) {
  * Creates a new user
  * 
  * Demonstrates validation error handling and custom errors
+ * Implements cache invalidation to maintain cache coherence
  */
 export async function POST(req: NextRequest) {
   try {
@@ -89,6 +107,11 @@ export async function POST(req: NextRequest) {
     });
 
     logger.info("User created successfully", { userId: user.id, email: user.email });
+
+    // Invalidate all users list cache entries (all pages)
+    // This ensures the new user appears in subsequent list requests
+    await deleteCachePattern("users:list:*");
+    logger.info("Cache invalidated after user creation", { pattern: "users:list:*" });
 
     return sendSuccess(user, "User created successfully", 201);
   } catch (error) {
