@@ -2,6 +2,68 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ---
 
+## Transactional Emails (SendGrid)
+
+Transactional emails notify users about critical events (welcome, password resets, alerts) and are sent automatically by backend triggers.
+
+### Provider Choice
+- SendGrid: rapid development via API key (free tier ~100/day)
+- AWS SES: suitable for backend automation (requires domain/email verification)
+
+This project integrates SendGrid for simplicity.
+
+### Setup
+1) Create a SendGrid account and verify a sender email.
+2) Generate an API key (Full Access).
+3) Add to your env files (.env.local, .env.development, etc.):
+
+```dotenv
+SENDGRID_API_KEY=your-api-key
+SENDGRID_SENDER=no-reply@yourdomain.com
+```
+
+### API Route
+- Endpoint: POST [/app/api/email/route.ts](app/api/email/route.ts)
+- Body:
+
+```json
+{
+	"to": "student@example.com",
+	"subject": "Welcome!",
+	"message": "<h3>Hello from Kalvium 🚀</h3>"
+}
+```
+
+### Template Usage
+- Template: [lib/templates/email.ts](lib/templates/email.ts)
+
+```ts
+import { welcomeTemplate } from "@/lib/templates/email";
+const htmlMessage = welcomeTemplate("Alice");
+```
+
+### Test Delivery
+
+```bash
+curl -X POST http://localhost:3000/api/email \
+	-H "Content-Type: application/json" \
+	-d '{"to":"student@example.com","subject":"Welcome!","message":"<h3>Hello from Kalvium 🚀</h3>"}'
+```
+
+Expected console:
+
+```
+[email] SendGrid response headers: { ... }
+```
+
+### Common Issues
+- Not delivered: check SendGrid sender verification or spam folder
+- Rate limits: queue or backoff strategies for bursts
+- Bounces: monitor in SendGrid dashboard or webhooks
+- High volume: perform sends in background tasks
+
+### Notes on SES (Alternative)
+- If you choose SES, you'd configure `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, and `SES_EMAIL_SENDER`, verify your identity, and use the SES SDK in the same route.
 ## Authentication (Signup, Login, Protected Routes)
 
 This app implements a simple JWT-based authentication flow using bcrypt for password hashing and JSON Web Tokens for session tokens.

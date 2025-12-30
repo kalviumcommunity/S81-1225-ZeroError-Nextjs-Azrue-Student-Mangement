@@ -8,6 +8,8 @@ const REQUIRED = [
   'DATABASE_URL',        // server-only
   'AUTH_SECRET',         // server-only
   'JWT_SECRET',          // server-only
+  'SENDGRID_API_KEY',    // server-only (email)
+  'SENDGRID_SENDER',     // server-only (email)
 ];
 
 function mask(v) {
