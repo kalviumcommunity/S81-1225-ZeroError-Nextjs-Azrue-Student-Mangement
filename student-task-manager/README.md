@@ -122,52 +122,40 @@ npm run build:production
 
 ---
 
-## Reusable Components & Layout
+## Context & Hooks for Global State
 
-**Hierarchy**
-- Header → Sidebar → LayoutWrapper → Page
+**Overview**
+- Contexts under [context](context) expose providers for app-wide state.
+- Custom hooks under [hooks](hooks) encapsulate typed usage contracts.
 
-**Structure**
-- Components live under [components](components) with a barrel export at [components/index.ts](components/index.ts).
-- Layout is applied globally via [app/layout.tsx](app/layout.tsx).
+**AuthContext**
+- File: [context/AuthContext.tsx](context/AuthContext.tsx)
+- State: `user: string | null`
+- Methods: `login(username)`, `logout()` — updates state and logs actions.
 
-**Files**
-- [Header](components/layout/Header.tsx)
-- [Sidebar](components/layout/Sidebar.tsx)
-- [LayoutWrapper](components/layout/LayoutWrapper.tsx)
-- [Button](components/ui/Button.tsx)
+**UIContext**
+- File: [context/UIContext.tsx](context/UIContext.tsx)
+- State: `theme: "light" | "dark"`, `sidebarOpen: boolean`
+- Methods: `toggleTheme()`, `toggleSidebar()`
 
-**Usage**
-- Import from the barrel: `import { LayoutWrapper } from "@/components"`.
-- Global layout wraps all routes in [app/layout.tsx](app/layout.tsx) with `LayoutWrapper`.
+**Custom Hooks**
+- [hooks/useAuth.ts](hooks/useAuth.ts): Returns `{ isAuthenticated, user, login, logout }`.
+- [hooks/useUI.ts](hooks/useUI.ts): Returns `{ theme, toggleTheme, sidebarOpen, toggleSidebar }`.
 
-**Props Contracts**
-- `Button`: `label: string`, `onClick?: () => void`, `variant?: "primary" | "secondary"`.
+**Provider Setup**
+- Providers applied globally in [app/layout.tsx](app/layout.tsx) wrapping existing UI with `AuthProvider` and `UIProvider`.
 
-**Accessibility**
-- Semantic tags: `header`, `nav`, `aside`, `main`.
-- [Header](components/layout/Header.tsx) uses `nav` with `aria-label` for screen readers.
-- Links leverage Next.js `Link` for correct semantics.
+**Demo Page**
+- See [app/page.tsx](app/page.tsx) for interactive usage.
 
-**Visual Consistency & Theming**
-- Tailwind utility classes ensure consistent spacing, color, and typography.
-- Variants in `Button` provide primary/secondary theming.
-
-**Storybook**
-- Installed with `npx storybook init` and scripts added to [package.json](package.json).
-- Example story: [Button.stories](components/ui/Button.stories.tsx).
-- Run locally:
-
-```bash
-npm run storybook
-```
-
-Open at http://localhost:6006 and verify components render in isolation.
+**Expected Logs**
+- `User logged in: KalviumUser`
+- `User logged out`
 
 **Reflection**
-- Scalability: Shared `LayoutWrapper` enforces a uniform shell across pages while isolating page content.
-- Reusability: Clear props contracts and a barrel export simplify adoption and maintenance.
-- Trade-offs: Global layouts reduce per-page flexibility; use per-route layouts when specialized shells are required.
+- Scalability: Shared providers and hooks avoid prop drilling and centralize state.
+- Cleanliness: Typed contracts via hooks keep components focused and testable.
+- Performance: Split contexts (auth vs UI), consider `useReducer` and `React.memo` for heavy components.
 
 Checks:
 
