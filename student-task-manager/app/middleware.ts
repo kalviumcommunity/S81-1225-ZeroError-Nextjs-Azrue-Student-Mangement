@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "supersecretkey"
-);
+const JWT_SECRET_STR = process.env.JWT_SECRET || "supersecretkey";
+const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_STR);
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Handle Public routes
+  if (pathname === "/" || pathname === "/login") {
+    return NextResponse.next();
+  }
+
+  // Handle API protection (Existing logic)
   if (pathname.startsWith("/api/admin") || pathname.startsWith("/api/users")) {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.split(" ")[1];
@@ -21,15 +26,7 @@ export async function middleware(req: NextRequest) {
     }
 
     try {
-      const { payload } = await jwtVerify(token, secret);
-
-      if (pathname.startsWith("/api/admin") && payload.role !== "admin") {
-        return NextResponse.json(
-          { success: false, message: "Access denied" },
-          { status: 403 }
-        );
-      }
-
+      const { payload } = await jwtVerify(token, JWT_SECRET);
       const requestHeaders = new Headers(req.headers);
       requestHeaders.set("x-user-email", String(payload.email));
       requestHeaders.set("x-user-role", String(payload.role));
@@ -45,22 +42,37 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // Handle Protected Page routes (Routing Lesson Logic)
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/users")) {
+    const token = req.cookies.get("token")?.value;
+
+    if (!token) {
+      const loginUrl = new URL("/login", req.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    try {
+      // Special case for the "mock.jwt.token" used in the lesson's login page
+      if (token === "mock.jwt.token") {
+        return NextResponse.next();
+      }
+
+      await jwtVerify(token, JWT_SECRET);
+      return NextResponse.next();
+    } catch {
+      const loginUrl = new URL("/login", req.url);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
   return NextResponse.next();
 }
 
-/**
- * Middleware Configuration
- * Specifies which routes the middleware should run on
- */
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/dashboard/:path*",
+    "/users/:path*",
+    "/api/admin/:path*",
+    "/api/users/:path*",
   ],
 };
