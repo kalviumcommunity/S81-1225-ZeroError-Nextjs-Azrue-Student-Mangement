@@ -120,6 +120,55 @@ Production build:
 npm run build:production
 ```
 
+---
+
+## Reusable Components & Layout
+
+**Hierarchy**
+- Header → Sidebar → LayoutWrapper → Page
+
+**Structure**
+- Components live under [components](components) with a barrel export at [components/index.ts](components/index.ts).
+- Layout is applied globally via [app/layout.tsx](app/layout.tsx).
+
+**Files**
+- [Header](components/layout/Header.tsx)
+- [Sidebar](components/layout/Sidebar.tsx)
+- [LayoutWrapper](components/layout/LayoutWrapper.tsx)
+- [Button](components/ui/Button.tsx)
+
+**Usage**
+- Import from the barrel: `import { LayoutWrapper } from "@/components"`.
+- Global layout wraps all routes in [app/layout.tsx](app/layout.tsx) with `LayoutWrapper`.
+
+**Props Contracts**
+- `Button`: `label: string`, `onClick?: () => void`, `variant?: "primary" | "secondary"`.
+
+**Accessibility**
+- Semantic tags: `header`, `nav`, `aside`, `main`.
+- [Header](components/layout/Header.tsx) uses `nav` with `aria-label` for screen readers.
+- Links leverage Next.js `Link` for correct semantics.
+
+**Visual Consistency & Theming**
+- Tailwind utility classes ensure consistent spacing, color, and typography.
+- Variants in `Button` provide primary/secondary theming.
+
+**Storybook**
+- Installed with `npx storybook init` and scripts added to [package.json](package.json).
+- Example story: [Button.stories](components/ui/Button.stories.tsx).
+- Run locally:
+
+```bash
+npm run storybook
+```
+
+Open at http://localhost:6006 and verify components render in isolation.
+
+**Reflection**
+- Scalability: Shared `LayoutWrapper` enforces a uniform shell across pages while isolating page content.
+- Reusability: Clear props contracts and a barrel export simplify adoption and maintenance.
+- Trade-offs: Global layouts reduce per-page flexibility; use per-route layouts when specialized shells are required.
+
 Checks:
 
 - Correct endpoint: open the console during build; ensure `[next.config] Environment summary` shows expected `NEXT_PUBLIC_API_URL`
