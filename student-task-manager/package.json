@@ -18,7 +18,9 @@
     "prisma:migrate:dev": "dotenv -e .env.development -- npx prisma migrate dev --name init_schema",
     "prisma:migrate:indexes:dev": "dotenv -e .env.development -- npx prisma migrate dev --name add_indexes_for_optimisation",
     "prisma:studio": "npx prisma studio",
-    "db:seed": "npx prisma db seed"
+    "db:seed": "npx prisma db seed",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",
@@ -45,7 +47,20 @@
     "prisma": "^5.19.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "storybook": "^10.1.11",
+    "@storybook/nextjs-vite": "^10.1.11",
+    "@chromatic-com/storybook": "^4.1.3",
+    "@storybook/addon-vitest": "^10.1.11",
+    "@storybook/addon-a11y": "^10.1.11",
+    "@storybook/addon-docs": "^10.1.11",
+    "@storybook/addon-onboarding": "^10.1.11",
+    "vite": "^7.3.0",
+    "eslint-plugin-storybook": "^10.1.11",
+    "vitest": "^4.0.16",
+    "playwright": "^1.57.0",
+    "@vitest/browser-playwright": "^4.0.16",
+    "@vitest/coverage-v8": "^4.0.16"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
