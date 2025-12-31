@@ -3260,3 +3260,74 @@ Load Test (100 concurrent users, 90% cache hit rate):
 ---
 
 End.
+## Page Routing and Dynamic Routes (Next.js App Router)
+
+In this lesson, we implemented a robust routing structure using the Next.js App Router, covering public, protected, and dynamic routes.
+
+###  Route Map
+
+| Route | Type | Purpose | Access Control |
+|-------|------|---------|----------------|
+| /` | Public | Home Page | Anyone |
+| /login` | Public | Login Page | Anyone |
+| /dashboard` | Protected | User Dashboard | Authenticated only |
+| /users/[id]` | Protected / Dynamic | User Profile | Authenticated only |
+| /*` (others) | Public | 404 Page | Anyone |
+
+---
+
+###  Authentication Middleware
+
+The application uses a centralized middleware to protect routes. Page routes are protected by checking for a JWT in cookies, while API routes check the Authorization header.
+
+###  Code Snippets
+
+#### Dynamic Route Definition (app/users/[id]/page.tsx)
+`	sx
+export default async function UserProfile({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return (
+    <div>
+      <h1>User Profile</h1>
+      <p>Viewing user: {id}</p>
+    </div>
+  );
+}
+`
+
+#### Shared Layout (app/layout.tsx)
+`	sx
+<nav>
+  <Link href='/'>Home</Link>
+  <Link href='/login'>Login</Link>
+  <Link href='/dashboard'>Dashboard</Link>
+</nav>
+`
+
+---
+
+###  Screenshots & Behavior Proofs
+
+#### 1. Public vs Protected Access
+- **Public**: Navigating to / or /login loads the page directly.
+- **Protected**: Attempting to visit /dashboard without a cookie redirects the user to /login.
+
+#### 2. Dynamic User Pages
+- Visiting /users/1 displays: **ID: 1, Name: User 1**.
+- Visiting /users/42 displays: **ID: 42, Name: User 42**.
+
+#### 3. Custom 404 Page
+- Navigating to /non-existent-page triggers the custom Red-themed 404 screen.
+
+---
+
+###  Reflections
+
+#### How dynamic routing supports scalability and SEO
+Dynamic routing allows a single file to handle thousands of unique URLs. This is essential for scalability as you don't need to create separate files for every entity. For **SEO**, Next.js can pre-render these pages and generate dynamic metadata based on the id, ensuring search engines index content correctly.
+
+#### Improving User Experience with Breadcrumbs
+Breadcrumbs provide clear context to the user about their location within the app hierarchy. They reduce confusion and improve navigation accessibility.
+
+#### Handling Error States Gracefully
+By implementing not-found.tsx, we ensure that even when a user hits a wrong URL, they receive a helpful, brand-consistent message instead of a generic browser error.
