@@ -10,6 +10,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Brand palette */
+  --color-brand-light: #93C5FD;
+  --color-brand: #3B82F6;
+  --color-brand-dark: #1E40AF;
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -17,6 +26,12 @@
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+}
+
+/* Explicit dark mode support via .dark class */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 body {
