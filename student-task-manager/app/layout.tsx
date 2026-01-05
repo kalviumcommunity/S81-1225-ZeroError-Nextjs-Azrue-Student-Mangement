@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <ToastProvider />
         <nav className="flex items-center gap-6 p-4 bg-white border-b shadow-sm">
           <Link href="/" className="font-bold text-blue-600 mr-4">AppLogo</Link>
           <Link href="/" className="hover:text-blue-600 transition-colors">Home</Link>
@@ -25,6 +27,7 @@ export default function RootLayout({
           <Link href="/dashboard" className="hover:text-blue-600 transition-colors">Dashboard</Link>
           <Link href="/users/1" className="hover:text-blue-600 transition-colors">User 1</Link>
           <Link href="/users/2" className="hover:text-blue-600 transition-colors">User 2</Link>
+          <Link href="/feedback-demo" className="hover:text-blue-600 transition-colors font-medium text-purple-600">Feedback Demo</Link>
         </nav>
         <div className="max-w-4xl mx-auto">
           {children}

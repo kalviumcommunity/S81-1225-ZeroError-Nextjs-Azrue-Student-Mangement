@@ -3537,4 +3537,60 @@ Breadcrumbs provide clear context to the user about their location within the ap
 
 #### Handling Error States Gracefully
 By implementing not-found.tsx, we ensure that even when a user hits a wrong URL, they receive a helpful, brand-consistent message instead of a generic browser error.
->>>>>>> c9acd4b102845242a5d0391e5c77727a3146bd88
+---
+
+## Interactive Feedback Layers
+
+This application implements a comprehensive feedback system using Toasts, Modals, and Loaders. These elements improve user trust and clarity by communicating the status of background operations and requiring confirmation for destructive actions.
+
+### 1. Toast Notifications (using `react-hot-toast`)
+Toasts provide non-blocking, instant feedback for user actions.
+
+**Trigger Points:**
+- **Success**: After successful data save, item deletion, or login.
+- **Error**: When an API call fails or validation errors occur.
+- **Loading**: During asynchronous operations to indicate progress.
+
+**Example Usage:**
+```tsx
+import { toast } from 'react-hot-toast';
+
+const handleSave = async () => {
+  toast.loading('Saving...', { id: 'save' });
+  try {
+    await saveData();
+    toast.success('Saved!', { id: 'save' });
+  } catch (err) {
+    toast.error('Failed to save', { id: 'save' });
+  }
+};
+```
+
+### 2. Accessible Modals (using `@headlessui/react`)
+Modals are used for blocking feedback that requires user confirmation.
+
+**UX Principles Followed:**
+- **Focus Trapping**: Keyboard focus is restricted to the modal while open.
+- **Accessibility**: ARIA roles and labels are correctly applied.
+- **Visual Clarity**: A blurred backdrop reduces distractions and highlights the modal content.
+- **Keyboard Handling**: Pressing `Esc` closes the modal automatically.
+
+### 3. Loaders & Progress Indicators
+Loaders indicate that a process is underway, preventing user frustration during wait times.
+
+**Types implemented:**
+- **Inline Loader**: Used for localized updates (e.g., within a button or section).
+- **Full Screen Loader**: Used for global state transitions or blocking operations (e.g., initial app load or critical deletions).
+
+### Demo Flow
+You can witness the full feedback cycle at `/feedback-demo`:
+1. **User clicks "Delete"**.
+2. **Modal Opens**: Asks for confirmation (Blocking).
+3. **User confirms**: Full-screen loader appears (Process).
+4. **Toast notification**: "Deleted successfully" appears (Instant).
+
+### Reflections
+- **Clarity**: Users are never left wondering if their action worked.
+- **Safety**: Modals prevent accidental deletions by adding a friction point.
+- **Aesthetics**: Smooth transitions and modern styling make the app feel premium and responsive.
+
