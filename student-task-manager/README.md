@@ -2080,6 +2080,77 @@ This approach demonstrates that **good API design is not just about functionalit
 
 ---
 
+<<<<<<< HEAD
+## Client-Side Data Fetching with SWR
+
+This project demonstrates SWR for client-side data fetching, caching, revalidation, and optimistic UI.
+
+### Setup
+
+Install SWR in the app:
+
+```bash
+npm install swr
+```
+
+Centralized fetcher helper:
+
+```ts
+// lib/fetcher.ts
+export const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch data");
+  const json = await res.json();
+  return json?.data ?? json; // unwrap global response envelope
+};
+```
+
+### Users Page (Fetch + Revalidate + Cache Inspection)
+
+Client page fetches from [/app/api/users/route.ts](app/api/users/route.ts) using SWR and logs cache keys:
+
+```tsx
+// app/users/page.tsx
+"use client";
+import useSWR from "swr";
+import { useEffect } from "react";
+import { useSWRConfig } from "swr";
+import { fetcher } from "@/lib/fetcher";
+import AddUser from "./AddUser";
+
+export default function UsersPage() {
+  const { cache } = useSWRConfig();
+  const { data, error, isLoading } = useSWR("/api/users", fetcher, {
+    revalidateOnFocus: true,
+    refreshInterval: 10000,
+    onErrorRetry: (err, key, _config, revalidate, { retryCount }) => {
+      if (retryCount >= 3) return;
+      setTimeout(() => revalidate({ retryCount }), 2000);
+    },
+  });
+
+  useEffect(() => {
+    console.log("Cache keys:", Array.from(cache.keys()));
+  }, [cache]);
+
+  if (error) return <p className="text-red-600">❌ Failed to load users</p>;
+  if (isLoading) return <p>Loading...</p>;
+
+  const items = data?.items ?? [];
+
+  return (
+    <main className="p-6">
+      <h1 className="text-2xl font-bold mb-4">User List</h1>
+      <ul className="space-y-2">
+        {items.map((user: any) => (
+          <li key={user.id} className="p-2 border-b border-gray-200">
+            {user.name} — {user.email}
+          </li>
+        ))}
+      </ul>
+      <AddUser />
+    </main>
+=======
 ## 🔐 Authorization Middleware & Role-Based Access Control (RBAC)
 
 This application implements a robust authorization middleware system that protects routes based on user roles and session validity. The middleware intercepts incoming requests, validates JWT tokens, and enforces role-based access control before routing to protected endpoints.
@@ -2280,10 +2351,96 @@ export async function GET(req: NextRequest) {
     },
     "Welcome Admin! You have full access.",
     200
+>>>>>>> c9acd4b102845242a5d0391e5c77727a3146bd88
   );
 }
 ```
 
+<<<<<<< HEAD
+### Optimistic UI with Mutation
+
+Add a user with an optimistic cache update, then revalidate:
+
+```tsx
+// app/users/AddUser.tsx
+"use client";
+import { useState } from "react";
+import useSWR, { mutate } from "swr";
+import { fetcher } from "@/lib/fetcher";
+
+export default function AddUser() {
+  const { data } = useSWR("/api/users", fetcher);
+  const [name, setName] = useState("");
+
+  const handleAddUser = async () => {
+    if (!name) return;
+
+    const tempUser = {
+      id: Date.now(),
+      name,
+      email: `temp${Date.now()}@user.com`,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Optimistic update (data shape: { items, pagination })
+    if (data?.items) {
+      mutate("/api/users", { ...data, items: [...data.items, tempUser] }, false);
+    }
+
+    // Actual API call (API expects name, email, passwordHash)
+    await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email: tempUser.email, passwordHash: "temp-hash" }),
+    });
+
+    // Revalidate
+    mutate("/api/users");
+    setName("");
+  };
+
+  return (
+    <div className="mt-4">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Enter user name"
+        className="border px-2 py-1 mr-2"
+      />
+      <button onClick={handleAddUser} className="bg-blue-600 text-white px-3 py-1 rounded">
+        Add User
+      </button>
+    </div>
+  );
+}
+```
+
+### SWR Keys
+
+- Key is the identifier for cached data: `useSWR("/api/users", fetcher)` → key `"/api/users"`
+- Conditional keys pause fetching: `useSWR(userId ? "/api/users/" + userId : null, fetcher)`
+
+### Revalidation Strategies
+
+- `revalidateOnFocus`: refetch when tab regains focus (enabled in the page)
+- `refreshInterval`: background polling for new data (10s in the page)
+- `onErrorRetry`: custom retry logic (max 3 retries, 2s delay)
+
+### Evidence: Cache Hits vs Misses
+
+Open browser console on [/app/users/page.tsx](app/users/page.tsx):
+- First navigation: cache miss, then SWR populates cache; console shows `Cache keys: ["/api/users", ...]`
+- Subsequent navigations/minor updates: cache hit; data renders instantly, then revalidates in background
+
+### Reflection
+
+- **Error handling & retries**: Centralized `fetcher` throws on non-OK responses; `onErrorRetry` limits retries for stability
+- **Stale-while-revalidate UX**: Immediate stale data improves perceived performance; background revalidation keeps UI fresh
+- **Trade-offs**: Stale data can momentarily show outdated info; pair with optimistic updates and clear loading/error states for best UX
+
+---
+
+=======
 **Access Requirements:**
 - ✅ Valid JWT token
 - ✅ Role must be `ADMIN`
@@ -3380,3 +3537,4 @@ Breadcrumbs provide clear context to the user about their location within the ap
 
 #### Handling Error States Gracefully
 By implementing not-found.tsx, we ensure that even when a user hits a wrong URL, they receive a helpful, brand-consistent message instead of a generic browser error.
+>>>>>>> c9acd4b102845242a5d0391e5c77727a3146bd88
