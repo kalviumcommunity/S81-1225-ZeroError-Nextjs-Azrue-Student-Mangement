@@ -135,7 +135,6 @@
 
   ---
 
-<<<<<<< HEAD
 ## Responsive UI & Theme Switching
 
 This section documents the custom Tailwind theme, responsive layout, and a light/dark mode toggle.
@@ -206,11 +205,53 @@ Include images or GIFs for:
 - Light vs Dark theme toggle
 
 ---
+## Loading Skeletons & Error Boundaries
+
+This section demonstrates route-level loading skeletons and error boundaries using the Next.js App Router in the Users flow.
+
+### Files & Structure
+
+- Loading skeleton: [app/users/loading.tsx](app/users/loading.tsx)
+- Error boundary: [app/users/error.tsx](app/users/error.tsx)
+- Simulated delay: [app/users/layout.tsx](app/users/layout.tsx)
+- Users page (with error trigger): [app/users/page.tsx](app/users/page.tsx)
+
+### Behaviors Implemented
+
+- Route-level loading: The `loading.tsx` renders a skeleton UI during suspense. A 2-second delay in `layout.tsx` makes this visible consistently.
+- Error boundary: The `error.tsx` component catches errors thrown by child components, displays a friendly fallback, and provides a retry via `reset()`.
+- Error simulation: The Users page includes a "Simulate Error" button that throws, allowing you to verify the boundary behavior.
+- SWR integration: Users data is fetched via SWR using a centralized fetcher at [lib/fetcher.ts](lib/fetcher.ts). The retry strategy is typed to satisfy strict TypeScript settings.
+
+### How to Test
+
+1. Start the app:
+
+```bash
+npm run dev
+```
+
+2. Visit the Users page:
+  - Navigate to http://localhost:3000/users
+  - Observe the shimmer skeleton from `loading.tsx` due to the 2-second delay.
+
+3. Trigger and recover from an error:
+  - Click "Simulate Error" on the Users page to throw.
+  - Confirm the error boundary UI renders from `error.tsx`.
+  - Click "Try Again" to call `reset()` and recover.
+
+4. Network conditions:
+  - In DevTools, enable Slow 3G to extend the loading state and observe skeleton behavior.
+
+### Reflection
+
+- Route-level `loading.tsx` and `error.tsx` provide predictable UX during data fetching and errors.
+- The explicit delay is purely for demonstration; remove it when not needed.
+- Pairing SWR with a route error boundary reduces complex client-side error handling.
+
+---
 
 ## 🐳 Docker & Docker Compose Setup
-=======
-  ## 🐳 Docker & Docker Compose Setup
->>>>>>> d3c8efaf80c884cadc37f46fa50f7fb82cd5acd7
 
   This project includes a **production-ready Docker setup** for local development that containerizes the entire application stack, eliminating the "it works on my machine" problem.
 
