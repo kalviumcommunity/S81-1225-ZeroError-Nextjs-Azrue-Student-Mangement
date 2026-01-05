@@ -135,6 +135,77 @@ Checks:
 
 ---
 
+## Responsive UI & Theme Switching
+
+This section documents the custom Tailwind theme, responsive layout, and a light/dark mode toggle.
+
+### Tailwind Configuration
+
+- Config file: [tailwind.config.js](tailwind.config.js)
+- Dark mode: `class`
+- Theme tokens are also defined using Tailwind v4 `@theme` in [app/globals.css](app/globals.css).
+
+Breakpoints:
+
+- `sm`: 640px
+- `md`: 768px
+- `lg`: 1024px
+- `xl`: 1280px
+
+Brand palette:
+
+- `brand-light`: #93C5FD
+- `brand` (DEFAULT): #3B82F6
+- `brand-dark`: #1E40AF
+
+### Theme Switching
+
+- Toggle component: [components/ThemeToggle.tsx](components/ThemeToggle.tsx)
+- Behavior: toggles the `dark` class on `<html>`, persists preference in `localStorage`, and respects system preference on first load.
+
+### Responsive Demo Page
+
+- Page: [app/responsive/page.tsx](app/responsive/page.tsx)
+- Includes:
+  - Hero section using `bg-brand` (dark variant switches to `bg-brand-dark`)
+  - Card grid that adapts at `sm`, `md`, `lg` using `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
+  - Spacing and typography that scale with breakpoints
+
+### How to Test
+
+1. Start the app and open the demo page:
+
+```bash
+npm run dev
+# then visit http://localhost:3000/responsive
+```
+
+2. Open DevTools → Device Toolbar and test:
+- Mobile (≤640px): single-column grid
+- Tablet (~768–1024px): two-column grid
+- Desktop (≥1024px): three-column grid
+
+3. Click the “Theme” toggle:
+- Light mode: brand accents on a light background
+- Dark mode: dark surface with `brand-dark` accents
+
+### Accessibility & Contrast Reflection
+
+- Dark mode uses higher-contrast foreground/background tokens
+- Buttons use `border-brand` + `text-brand` for consistent visual cues
+- Focus and hover states are provided via color opacity adjustments
+- Ensure sufficient contrast (WCAG AA) when customizing palettes
+
+### Screenshots
+
+Include images or GIFs for:
+- Mobile view (hero + single-column cards)
+- Tablet view (two columns)
+- Desktop view (three columns)
+- Light vs Dark theme toggle
+
+---
+
 ## 🐳 Docker & Docker Compose Setup
 
 This project includes a **production-ready Docker setup** for local development that containerizes the entire application stack, eliminating the "it works on my machine" problem.
