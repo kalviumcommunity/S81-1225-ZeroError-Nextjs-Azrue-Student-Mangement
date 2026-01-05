@@ -188,3 +188,13 @@ model ActivityLog {
   @@index([projectId, createdAt])
   @@index([teamId, createdAt])
 }
+
+// File storage metadata
+model File {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  name      String
+  url       String   @unique
+  size      Int?
+  mimeType  String?
+}
