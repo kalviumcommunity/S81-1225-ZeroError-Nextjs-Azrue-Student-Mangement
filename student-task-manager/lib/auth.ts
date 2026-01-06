@@ -16,8 +16,8 @@ export type JwtPayload = {
 
 // Token expiry durations
 export const TOKEN_EXPIRY = {
-  ACCESS_TOKEN: "15m", // 15 minutes
-  REFRESH_TOKEN: "7d", // 7 days
+  ACCESS_TOKEN: "15m", 
+  REFRESH_TOKEN: "7d",
 } as const;
 
 /**
