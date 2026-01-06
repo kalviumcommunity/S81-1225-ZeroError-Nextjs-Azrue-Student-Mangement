@@ -1,9 +1,15 @@
-import { NextRequest } from "next/server";
-import bcrypt from "bcryptjs";
+export const runtime = "nodejs";
+
+import { NextRequest, NextResponse } from "next/server";
+import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { sendSuccess, sendError } from "@/lib/responseHandler";
+import { sendError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
-import { signToken } from "@/lib/auth";
+import {
+  signAccessToken,
+  signRefreshToken,
+  storeRefreshToken,
+} from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -19,14 +25,43 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    return sendError("Invalid credentials", ERROR_CODES.INVALID_CREDENTIALS, 401);
+    return sendError(
+      "Invalid credentials",
+      ERROR_CODES.INVALID_CREDENTIALS,
+      401
+    );
   }
 
-  const match = await bcrypt.compare(password, user.passwordHash);
+  const match = await compare(password, user.passwordHash);
   if (!match) {
-    return sendError("Invalid credentials", ERROR_CODES.INVALID_CREDENTIALS, 401);
+    return sendError(
+      "Invalid credentials",
+      ERROR_CODES.INVALID_CREDENTIALS,
+      401
+    );
   }
 
-  const token = signToken({ id: user.id, email: user.email }, "1h");
-  return sendSuccess({ token }, "Login successful");
+  const accessToken = signAccessToken({ id: user.id, email: user.email });
+  const refreshToken = signRefreshToken({ id: user.id, email: user.email });
+
+  await storeRefreshToken(user.id, refreshToken);
+
+  const response = NextResponse.json({
+    success: true,
+    message: "Login successful",
+    data: {
+      accessToken,
+      user: { id: user.id, email: user.email, name: user.name },
+    },
+  });
+
+  response.cookies.set("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  });
+
+  return response;
 }

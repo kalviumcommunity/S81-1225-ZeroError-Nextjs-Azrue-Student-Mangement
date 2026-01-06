@@ -23,6 +23,7 @@ export const ERROR_CODES = {
     INVALID_TOKEN: "E102",
     TOKEN_EXPIRED: "E103",
     INVALID_CREDENTIALS: "E104",
+    TOKEN_REVOKED: "E105",
 
     // Resource Errors (E200-E299)
     NOT_FOUND: "E200",
@@ -74,6 +75,7 @@ export const ERROR_DESCRIPTIONS: Record<ErrorCode, string> = {
     E102: "Invalid token - Authentication token is invalid",
     E103: "Token expired - Authentication token has expired",
     E104: "Invalid credentials - Username or password is incorrect",
+    E105: "Token revoked - Refresh token has been revoked",
 
     // Resource Errors
     E200: "Not found - Requested resource does not exist",
