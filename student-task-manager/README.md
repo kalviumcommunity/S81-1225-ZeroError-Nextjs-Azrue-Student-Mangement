@@ -417,6 +417,505 @@ npm run dev
   - Clear error contracts simplify client handling and logging
   - Type-safe inputs improve maintainability and refactoring confidence
 
+  ---
+
+  ## 🔐 JWT Authentication with Access & Refresh Tokens
+
+  This application implements a secure, production-ready authentication system using **JSON Web Tokens (JWT)** with separate access and refresh tokens. The implementation includes token rotation, expiry handling, and protection against common security threats like XSS and CSRF.
+
+  ### 📋 JWT Structure
+
+  A JSON Web Token consists of three parts separated by dots (`.`):
+
+  ```
+  header.payload.signature
+  ```
+
+  **Example decoded JWT:**
+
+  ```json
+  {
+    "header": { 
+      "alg": "HS256", 
+      "typ": "JWT" 
+    },
+    "payload": { 
+      "id": 12345,
+      "email": "user@example.com",
+      "type": "access",
+      "exp": 1715120000 
+    },
+    "signature": "hashed-verification-string"
+  }
+  ```
+
+  - **Header**: Specifies the algorithm (HS256) and token type (JWT)
+  - **Payload**: Contains claims (user info, expiry, token type, etc.)
+  - **Signature**: Ensures integrity — verifies the token hasn't been tampered with
+
+  ⚠️ **Security Note**: JWTs are only **encoded**, not **encrypted**. Never store sensitive data like passwords in the payload.
+
+  ### 🎫 Access vs Refresh Tokens
+
+  | Token Type | Lifespan | Purpose | Storage |
+  |------------|----------|---------|---------|
+  | **Access Token** | 15 minutes | API requests | Memory or HTTP-only cookie |
+  | **Refresh Token** | 7 days | Get new access tokens | Database + HTTP-only cookie |
+
+  **Why two tokens?**
+  - **Short-lived access tokens** minimize damage if stolen
+  - **Long-lived refresh tokens** reduce login frequency
+  - **Database storage** of refresh tokens enables revocation (logout)
+  - **Token rotation** prevents replay attacks
+
+  ### 🔄 Authentication Flow
+
+  ```mermaid
+  sequenceDiagram
+      participant Client
+      participant Server
+      participant Database
+
+      Client->>Server: POST /api/auth/login (email, password)
+      Server->>Database: Verify credentials
+      Database-->>Server: User found
+      Server->>Server: Generate access + refresh tokens
+      Server->>Database: Store refresh token
+      Server-->>Client: { accessToken, refreshToken, user }
+      
+      Note over Client: Store tokens securely
+      
+      Client->>Server: GET /api/protected (Authorization: Bearer {accessToken})
+      Server->>Server: Verify access token
+      Server-->>Client: Protected data
+      
+      Note over Client: Access token expires (15 min)
+      
+      Client->>Server: POST /api/auth/refresh ({ refreshToken })
+      Server->>Database: Verify refresh token
+      Database-->>Server: Token valid
+      Server->>Database: Revoke old refresh token
+      Server->>Server: Generate new tokens
+      Server->>Database: Store new refresh token
+      Server-->>Client: { accessToken, refreshToken }
+  ```
+
+  ### 🛡️ Security Implementations
+
+  #### Protection Against XSS (Cross-Site Scripting)
+
+  **Threat**: Malicious scripts stealing tokens from `localStorage` or `sessionStorage`
+
+  **Mitigations**:
+  - ✅ Use **HTTP-only cookies** for refresh tokens (not accessible to JavaScript)
+  - ✅ **Sanitize all user input** before rendering
+  - ✅ Use **Content Security Policy (CSP)** headers
+  - ✅ Keep access tokens in **memory** when possible (cleared on page refresh)
+
+  **Current Implementation**:
+  ```typescript
+  // Client-side token storage (lib/clientAuth.ts)
+  // For demo purposes, uses localStorage
+  // In production, use HTTP-only cookies for refresh tokens
+  export const tokenStorage = {
+    getAccessToken: () => localStorage.getItem("accessToken"),
+    getRefreshToken: () => localStorage.getItem("refreshToken"),
+    // ...
+  };
+  ```
+
+  **Production Recommendation**:
+  ```typescript
+  // Server-side cookie setting (recommended for production)
+  res.cookie('refreshToken', token, {
+    httpOnly: true,      // Not accessible to JavaScript
+    secure: true,        // Only sent over HTTPS
+    sameSite: 'strict',  // CSRF protection
+    maxAge: 7 * 24 * 60 * 60 * 1000  // 7 days
+  });
+  ```
+
+  #### Protection Against CSRF (Cross-Site Request Forgery)
+
+  **Threat**: Unwanted authenticated requests from malicious sites
+
+  **Mitigations**:
+  - ✅ Use **SameSite cookies** (`Strict` or `Lax`)
+  - ✅ Verify **Origin** and **Referer** headers
+  - ✅ Use **CSRF tokens** for state-changing operations
+  - ✅ Require **custom headers** (e.g., `X-Requested-With`)
+
+  #### Protection Against Token Replay Attacks
+
+  **Threat**: Reuse of stolen tokens
+
+  **Mitigations**:
+  - ✅ **Short token lifespan** (15 min for access tokens)
+  - ✅ **Token rotation** on refresh (old refresh token is revoked)
+  - ✅ **Database storage** enables immediate revocation
+  - ✅ **Logout from all devices** feature
+
+  ### 📁 File Structure
+
+  ```
+  lib/
+  ├── auth.ts              # JWT signing, verification, token management
+  ├── authMiddleware.ts    # Route protection helpers
+  └── clientAuth.ts        # Client-side auth utilities
+
+  app/api/auth/
+  ├── login/route.ts       # POST - Issue access + refresh tokens
+  ├── signup/route.ts      # POST - User registration
+  ├── refresh/route.ts     # POST - Refresh access token
+  ├── logout/route.ts      # POST - Revoke refresh token(s)
+  └── me/route.ts          # GET - Get current user (protected route example)
+
+  prisma/schema.prisma     # RefreshToken model for database storage
+  ```
+
+  ### 🔌 API Endpoints
+
+  #### 1. **Login** - `POST /api/auth/login`
+
+  **Request**:
+  ```json
+  {
+    "email": "user@example.com",
+    "password": "securePassword123"
+  }
+  ```
+
+  **Response** (200 OK):
+  ```json
+  {
+    "success": true,
+    "message": "Login successful",
+    "data": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": 1,
+        "email": "user@example.com",
+        "name": "John Doe"
+      }
+    }
+  }
+  ```
+
+  #### 2. **Refresh Token** - `POST /api/auth/refresh`
+
+  **Request**:
+  ```json
+  {
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+  ```
+
+  **Response** (200 OK):
+  ```json
+  {
+    "success": true,
+    "message": "Token refreshed successfully",
+    "data": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "user": {
+        "id": 1,
+        "email": "user@example.com",
+        "name": "John Doe"
+      }
+    }
+  }
+  ```
+
+  **Error** (401 Unauthorized):
+  ```json
+  {
+    "success": false,
+    "message": "Invalid or expired refresh token",
+    "code": "E103"
+  }
+  ```
+
+  #### 3. **Logout** - `POST /api/auth/logout`
+
+  **Single Device Logout**:
+  ```json
+  {
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+  ```
+
+  **Logout from All Devices**:
+  ```json
+  {
+    "all": true
+  }
+  ```
+  *Requires `Authorization: Bearer {accessToken}` header*
+
+  **Response** (200 OK):
+  ```json
+  {
+    "success": true,
+    "message": "Logged out successfully"
+  }
+  ```
+
+  #### 4. **Protected Route Example** - `GET /api/auth/me`
+
+  **Request**:
+  ```
+  GET /api/auth/me
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  ```
+
+  **Response** (200 OK):
+  ```json
+  {
+    "success": true,
+    "message": "User retrieved successfully",
+    "data": {
+      "id": 1,
+      "email": "user@example.com",
+      "message": "You are authenticated!"
+    }
+  }
+  ```
+
+  **Error** (401 Unauthorized):
+  ```json
+  {
+    "success": false,
+    "message": "Access token expired - please refresh",
+    "code": "E103"
+  }
+  ```
+
+  ### 💻 Client-Side Implementation
+
+  #### Automatic Token Refresh
+
+  ```typescript
+  import { fetchWithAuth } from '@/lib/clientAuth';
+
+  // Automatically refreshes token on 401 errors
+  async function fetchProtectedData() {
+    const response = await fetchWithAuth('/api/auth/me');
+    const data = await response.json();
+    return data;
+  }
+  ```
+
+  #### Manual Login/Logout
+
+  ```typescript
+  import { login, logout } from '@/lib/clientAuth';
+
+  // Login
+  const result = await login('user@example.com', 'password123');
+  if (result.success) {
+    console.log('Logged in successfully');
+  }
+
+  // Logout (single device)
+  await logout(false);
+
+  // Logout from all devices
+  await logout(true);
+  ```
+
+  ### 🔧 Server-Side Route Protection
+
+  ```typescript
+  import { NextRequest } from "next/server";
+  import { requireAuth } from "@/lib/authMiddleware";
+  import { sendSuccess } from "@/lib/responseHandler";
+
+  export async function GET(req: NextRequest) {
+    // Validate authentication
+    const authResult = await requireAuth(req);
+    if (authResult.error) return authResult.error;
+
+    const user = authResult.user!;
+
+    // Your protected logic here
+    return sendSuccess({ userId: user.id }, "Success");
+  }
+  ```
+
+  ### 🗄️ Database Schema
+
+  **RefreshToken Model** (Prisma):
+
+  ```prisma
+  model RefreshToken {
+    id        Int      @id @default(autoincrement())
+    token     String   @unique
+    userId    Int
+    expiresAt DateTime
+    createdAt DateTime @default(now())
+    revokedAt DateTime?  // Null = active, set = revoked
+    
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    
+    @@index([userId])
+    @@index([token])
+    @@index([expiresAt])
+  }
+  ```
+
+  ### 🧪 Testing the Authentication Flow
+
+  #### 1. **Start the Application**
+
+  ```bash
+  # Using Docker (recommended)
+  docker-compose up --build
+
+  # Or locally (requires PostgreSQL)
+  npm run dev
+  ```
+
+  #### 2. **Test Login**
+
+  ```bash
+  curl -X POST http://localhost:3000/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"alice@example.com","password":"password123"}'
+  ```
+
+  **Expected**: Receive `accessToken` and `refreshToken`
+
+  #### 3. **Test Protected Route**
+
+  ```bash
+  # Replace {ACCESS_TOKEN} with the token from login
+  curl -X GET http://localhost:3000/api/auth/me \
+    -H "Authorization: Bearer {ACCESS_TOKEN}"
+  ```
+
+  **Expected**: User information returned
+
+  #### 4. **Test Token Expiry** (Wait 15+ minutes or modify `TOKEN_EXPIRY.ACCESS_TOKEN` in `lib/auth.ts`)
+
+  ```bash
+  curl -X GET http://localhost:3000/api/auth/me \
+    -H "Authorization: Bearer {EXPIRED_ACCESS_TOKEN}"
+  ```
+
+  **Expected**: `401 Unauthorized` with `"Access token expired - please refresh"`
+
+  #### 5. **Test Token Refresh**
+
+  ```bash
+  curl -X POST http://localhost:3000/api/auth/refresh \
+    -H "Content-Type: application/json" \
+    -d '{"refreshToken":"{REFRESH_TOKEN}"}'
+  ```
+
+  **Expected**: New `accessToken` and `refreshToken` (old refresh token is revoked)
+
+  #### 6. **Test Logout**
+
+  ```bash
+  curl -X POST http://localhost:3000/api/auth/logout \
+    -H "Content-Type: application/json" \
+    -d '{"refreshToken":"{REFRESH_TOKEN}"}'
+  ```
+
+  **Expected**: `"Logged out successfully"`
+
+  #### 7. **Verify Token Rotation** (Try using old refresh token after refresh)
+
+  ```bash
+  curl -X POST http://localhost:3000/api/auth/refresh \
+    -H "Content-Type: application/json" \
+    -d '{"refreshToken":"{OLD_REFRESH_TOKEN}"}'
+  ```
+
+  **Expected**: `401 Unauthorized` - token has been revoked
+
+  ### 📊 Token Lifecycle Diagram
+
+  ```
+  ┌─────────────┐
+  │   Login     │
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────────────────────┐
+  │ Access Token (15 min)       │
+  │ Refresh Token (7 days)      │
+  └──────┬──────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────┐
+  │ Make API Requests           │
+  │ (Authorization: Bearer)     │
+  └──────┬──────────────────────┘
+         │
+         ▼
+  ┌─────────────────────────────┐
+  │ Access Token Expires?       │
+  └──────┬──────────────────────┘
+         │
+         ├─ NO ──► Continue using
+         │
+         └─ YES ─► Refresh Token
+                   │
+                   ▼
+            ┌──────────────────┐
+            │ New Access Token │
+            │ New Refresh Token│
+            │ (Old revoked)    │
+            └──────────────────┘
+  ```
+
+  ### 🎯 Key Takeaways
+
+  1. **Access tokens are short-lived** (15 min) to minimize risk if stolen
+  2. **Refresh tokens are long-lived** (7 days) but stored in database for revocation
+  3. **Token rotation** prevents replay attacks - old refresh token is revoked after use
+  4. **HTTP-only cookies** (recommended for production) protect against XSS
+  5. **SameSite cookies** protect against CSRF
+  6. **Database storage** enables immediate logout and "logout from all devices"
+  7. **Type discrimination** (`type: "access" | "refresh"`) prevents token misuse
+
+  ### 🚀 Production Checklist
+
+  - [ ] Use **HTTP-only, Secure, SameSite cookies** for refresh tokens
+  - [ ] Enable **HTTPS** in production
+  - [ ] Set strong **JWT_SECRET** (32+ random characters)
+  - [ ] Implement **rate limiting** on auth endpoints
+  - [ ] Add **CSRF tokens** for state-changing operations
+  - [ ] Set up **token cleanup cron job** (remove expired tokens from database)
+  - [ ] Monitor **failed login attempts** and implement account lockout
+  - [ ] Log **security events** (login, logout, token refresh, failures)
+  - [ ] Consider **refresh token rotation limits** (max 5 active tokens per user)
+  - [ ] Implement **email verification** for new accounts
+
+  ### 🔍 Security Reflection
+
+  **What makes this implementation secure?**
+
+  1. **Defense in Depth**: Multiple layers (short expiry + rotation + database storage + revocation)
+  2. **Least Privilege**: Access tokens contain minimal information
+  3. **Auditability**: All refresh tokens are logged in database with timestamps
+  4. **Revocability**: Immediate logout capability via database
+  5. **Token Rotation**: Prevents long-term token theft exploitation
+
+  **Remaining Risks & Mitigations**:
+
+  - **XSS**: If attacker injects script, they can steal tokens from `localStorage`
+    - **Mitigation**: Use HTTP-only cookies in production, implement CSP
+  - **Man-in-the-Middle**: Attacker intercepts tokens over HTTP
+    - **Mitigation**: Always use HTTPS in production
+  - **Brute Force**: Attacker tries many passwords
+    - **Mitigation**: Implement rate limiting and account lockout
+
+  ---
+
   # Test database connection and view sample data
   docker exec -it postgres_db psql -U postgres -d mydb -c "SELECT * FROM students;"
 
