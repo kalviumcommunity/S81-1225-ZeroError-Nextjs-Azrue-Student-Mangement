@@ -5,6 +5,7 @@ import { handleError, AppError } from "@/lib/errorHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
 import { logger } from "@/lib/logger";
 import { cacheAside, generateCacheKey, deleteCachePattern } from "@/lib/cache";
+import { sanitizeFields } from "@/lib/sanitize";
 
 /**
  * GET /api/users
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, email, passwordHash } = body ?? {};
+    const cleaned = sanitizeFields({ name, email }, ["name", "email"]);
 
     // Validation
     if (!name || !email || !passwordHash) {
@@ -99,10 +101,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    logger.info("Creating new user", { email });
+    logger.info("Creating new user", { email: cleaned.email });
 
     const user = await prisma.user.create({
-      data: { name, email, passwordHash },
+      data: { name: cleaned.name, email: cleaned.email, passwordHash },
       select: { id: true, name: true, email: true, createdAt: true },
     });
 
