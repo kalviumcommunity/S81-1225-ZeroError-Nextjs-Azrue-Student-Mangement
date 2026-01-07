@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         {
             id: user.id,
             email: user.email,
+            role: user.role,
             message: "You are authenticated!",
         },
         "User retrieved successfully"

@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export type JwtPayload = {
   id: number;
   email: string;
+  role?: string;
   type?: "access" | "refresh";
   iat?: number;
   exp?: number;

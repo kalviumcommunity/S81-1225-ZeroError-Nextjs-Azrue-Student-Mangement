@@ -1,6 +1,78 @@
   This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
   ---
+  
+  ## 🔒 Role-Based Access Control (RBAC)
+  
+  This project implements RBAC to enforce backend-first permissions and provide role-aware UI.
+  
+  ### Roles & Permissions
+  
+  | Role   | Permissions                          |
+  |--------|--------------------------------------|
+  | Admin  | create, read, update, delete (all)   |
+  | Editor | read, update                         |
+  | Viewer | read                                 |
+  
+  Central mapping is defined in [lib/rbac.ts](lib/rbac.ts):
+  
+  ```ts
+  export const roles = {
+    admin: ["create", "read", "update", "delete"],
+    editor: ["read", "update"],
+    viewer: ["read"],
+  };
+  ```
+  
+  ### JWT Payload Includes Role
+  
+  Upon login, the access and refresh tokens embed the user role (see [app/api/auth/login/route.ts](app/api/auth/login/route.ts)):
+  
+  ```ts
+  const accessToken = signAccessToken({ id: user.id, email: user.email, role: user.role });
+  ```
+  
+  Middleware and route helpers expose `role` to handlers and UI via [app/api/auth/me/route.ts](app/api/auth/me/route.ts).
+  
+  ### Policy Evaluation (Backend)
+  
+  Use `requirePermission()` to guard sensitive operations:
+  
+  ```ts
+  import { requirePermission } from "@/lib/rbac";
+  
+  export async function POST(req: NextRequest) {
+    const permissionError = requirePermission(req, "create", { resource: "users" });
+    if (permissionError) return permissionError;
+    // Proceed with creation
+  }
+  ```
+  
+  Every allow/deny decision is logged:
+  
+  ```json
+  {"level":"info","message":"[RBAC] Access check","meta":{"role":"VIEWER","permission":"create","resource":"/api/users","allowed":false},"timestamp":"..."}
+  ```
+  
+  ### Policy in UI (Frontend)
+  
+  The Users page fetches `/api/auth/me` and only renders Create controls for `ADMIN` (see [app/users/page.tsx](app/users/page.tsx)):
+  
+  ```tsx
+  {role === "ADMIN" ? <AddUser /> : null}
+  ```
+  
+  ### Verification & Audit
+  
+  - Try `POST /api/users` as `ADMIN` → Allowed, logs ALLOWED.
+  - Try as `VIEWER` → `403` with `E101: Forbidden - Insufficient permissions`, logs DENIED.
+  - Check `/api/auth/me` returns `{ id, email, role }`.
+  
+  ### Scalability & Adaptation
+  
+  - RBAC mapping is centralized and easy to extend.
+  - Logging provides an audit trail for decisions.
+  - For complex systems, consider attribute/policy-based access (ABAC/PBAC) using rules engines; start by replacing `hasPermission()` with policy evaluation.
 
   ## Production-Ready Environment & Secrets
 
