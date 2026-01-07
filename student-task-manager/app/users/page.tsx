@@ -3,10 +3,12 @@ import useSWR from "swr";
 import { useEffect, useState } from "react";
 import { useSWRConfig } from "swr";
 import { fetcher } from "@/lib/fetcher";
+import { fetchWithAuth } from "@/lib/clientAuth";
 import AddUser from "./AddUser";
 
 export default function UsersPage() {
   const [boom, setBoom] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
   const { cache } = useSWRConfig();
   const { data, error, isLoading } = useSWR("/api/users", fetcher, {
     revalidateOnFocus: true,
@@ -22,6 +24,21 @@ export default function UsersPage() {
     // Log once data is attempted to be fetched
     console.log("Cache keys:", Array.from(cache.keys()));
   }, [cache]);
+
+  useEffect(() => {
+    // Fetch current user to determine role for UI controls
+    (async () => {
+      try {
+        const res = await fetchWithAuth("/api/auth/me");
+        if (res.ok) {
+          const json = await res.json();
+          setRole(json?.data?.role ?? null);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   if (boom) throw new Error("Simulated error for testing error boundary");
   if (error) return <p className="text-red-600">❌ Failed to load users</p>;
@@ -47,7 +64,7 @@ export default function UsersPage() {
           </li>
         ))}
       </ul>
-      <AddUser />
+      {role === "ADMIN" ? <AddUser /> : null}
     </main>
   );
 }
