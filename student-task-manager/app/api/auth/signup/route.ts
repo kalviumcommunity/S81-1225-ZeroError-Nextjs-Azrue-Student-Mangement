@@ -3,11 +3,13 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, handlePrismaError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
+import { sanitizeFields } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, email, password } = body ?? {};
+    const cleaned = sanitizeFields({ name, email }, ["name", "email"]);
 
     if (!name || !email || !password) {
       return sendError(
@@ -18,7 +20,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({ where: { email: cleaned.email } });
     if (existing) {
       return sendError("Email already registered", ERROR_CODES.DUPLICATE_ENTRY, 400);
     }
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { name, email, passwordHash },
+      data: { name: cleaned.name, email: cleaned.email, passwordHash },
       select: { id: true, name: true, email: true, createdAt: true },
     });
 

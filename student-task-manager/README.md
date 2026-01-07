@@ -2,6 +2,69 @@
 
   ---
   
+<<<<<<< HEAD
+  ## 🛡️ Input Sanitization & OWASP Practices
+  
+  We mitigate XSS and SQL Injection by sanitizing inputs and using parameterized queries.
+  
+  ### Sanitizer Utility
+  
+  Centralized helpers in [lib/sanitize.ts](lib/sanitize.ts):
+  
+  ```ts
+  import sanitizeHtml from "sanitize-html";
+  export function sanitizeInput(input: any): string {
+    return sanitizeHtml(String(input ?? ""), { allowedTags: [], allowedAttributes: {} });
+  }
+  export function sanitizeFields(obj, fields) { /* ... */ }
+  ```
+  
+  Installed via:
+  
+  ```bash
+  npm install sanitize-html
+  ```
+  
+  ### Server-side Sanitization (Before Store)
+  
+  - Signup: sanitize `name`, `email` → [app/api/auth/signup/route.ts](app/api/auth/signup/route.ts)
+  - Login: sanitize `email` → [app/api/auth/login/route.ts](app/api/auth/login/route.ts)
+  - Create User: sanitize `name`, `email` → [app/api/users/route.ts](app/api/users/route.ts)
+  
+  Example:
+  
+  ```ts
+  const cleaned = sanitizeFields({ name, email }, ["name", "email"]);
+  await prisma.user.create({ data: { name: cleaned.name, email: cleaned.email, passwordHash } });
+  ```
+  
+  ### Client-side Encoding (Before Render)
+  
+  React auto-escapes strings. We avoid `dangerouslySetInnerHTML`. For demonstration, `AddUser` sanitizes the name before optimistic update: [app/users/AddUser.tsx](app/users/AddUser.tsx).
+  
+  ### Prevent SQL Injection
+  
+  We use Prisma ORM with parameterized queries (no string concatenation). All DB reads/writes are through Prisma methods (e.g., `prisma.user.findUnique({ where: { email } })`).
+  
+  ### Before/After Demo
+  
+  Try injecting HTML tags into `name` while creating a user:
+  
+  ```powershell
+  Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/users -Body (@{name='<script>alert(`'XSS`')</script>'; email='xss@example.com'; passwordHash='demo'} | ConvertTo-Json) -ContentType 'application/json'
+  Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/users
+  ```
+  
+  - Before: Un-sanitized apps would persist and render the tag.
+  - After: The stored value is sanitized (tags removed) and safe when rendered.
+  
+  ### Future Improvements
+  
+  - Add Content Security Policy (CSP) headers
+  - Integrate validation schemas (Zod/Yup) for strict input contracts
+  - Secure headers via middleware (e.g., `X-Content-Type-Options`, `X-Frame-Options`)
+  - Regular security reviews and `npm audit` remediation
+=======
   ## 🔒 Role-Based Access Control (RBAC)
   
   This project implements RBAC to enforce backend-first permissions and provide role-aware UI.
@@ -73,6 +136,7 @@
   - RBAC mapping is centralized and easy to extend.
   - Logging provides an audit trail for decisions.
   - For complex systems, consider attribute/policy-based access (ABAC/PBAC) using rules engines; start by replacing `hasPermission()` with policy evaluation.
+>>>>>>> 16e8033ba88c14aaffa92c95f792844b7444f11e
 
   ## Production-Ready Environment & Secrets
 
