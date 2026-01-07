@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const accessToken = signAccessToken({ id: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ id: user.id, email: user.email });
+  const accessToken = signAccessToken({ id: user.id, email: user.email, role: user.role });
+  const refreshToken = signRefreshToken({ id: user.id, email: user.email, role: user.role });
 
   await storeRefreshToken(user.id, refreshToken);
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     message: "Login successful",
     data: {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
     },
   });
 

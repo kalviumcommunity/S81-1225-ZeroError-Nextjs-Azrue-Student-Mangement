@@ -5,7 +5,11 @@ import { handleError, AppError } from "@/lib/errorHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
 import { logger } from "@/lib/logger";
 import { cacheAside, generateCacheKey, deleteCachePattern } from "@/lib/cache";
+<<<<<<< HEAD
 import { sanitizeFields } from "@/lib/sanitize";
+=======
+import { requirePermission } from "@/lib/rbac";
+>>>>>>> 16e8033ba88c14aaffa92c95f792844b7444f11e
 
 /**
  * GET /api/users
@@ -88,6 +92,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
+    const permissionError = requirePermission(req, "create", { resource: "users" });
+    if (permissionError) return permissionError;
+
     const body = await req.json();
     const { name, email, passwordHash } = body ?? {};
     const cleaned = sanitizeFields({ name, email }, ["name", "email"]);

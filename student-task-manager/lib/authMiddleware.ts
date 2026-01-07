@@ -19,7 +19,7 @@ import { getBearerToken, verifyToken } from "./auth";
  * ```
  */
 export async function requireAuth(req: NextRequest): Promise<{
-    user?: { id: number; email: string };
+    user?: { id: number; email: string; role?: string };
     error?: Response;
 }> {
     const authHeader = req.headers.get("authorization");
@@ -63,6 +63,7 @@ export async function requireAuth(req: NextRequest): Promise<{
         user: {
             id: verification.payload.id,
             email: verification.payload.email,
+            role: verification.payload.role,
         },
     };
 }
@@ -72,7 +73,7 @@ export async function requireAuth(req: NextRequest): Promise<{
  * Useful for routes that have different behavior for authenticated vs anonymous users
  */
 export async function optionalAuth(req: NextRequest): Promise<{
-    user?: { id: number; email: string };
+    user?: { id: number; email: string; role?: string };
 }> {
     const authHeader = req.headers.get("authorization");
     const token = getBearerToken(authHeader);
@@ -91,6 +92,7 @@ export async function optionalAuth(req: NextRequest): Promise<{
         user: {
             id: verification.payload.id,
             email: verification.payload.email,
+            role: verification.payload.role,
         },
     };
 }
