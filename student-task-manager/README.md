@@ -1928,3 +1928,7 @@ npm run dev
 
   ---
 
+## Object Storage (AWS/Azure)
+
+See OBJECT_STORAGE.md for step-by-step setup, env vars, and how the presigned upload flow works via `/api/upload` and the `/upload` page.
+
