@@ -2063,3 +2063,7 @@ See OBJECT_STORAGE.md for step-by-step setup, env vars, and how the presigned up
 
 See SECRETS.md for setting up AWS Secrets Manager or Azure Key Vault, least-privilege access, and our server-side retrieval with a safe validation route at `/api/secrets`.
 
+## Managed Database
+
+See MANAGED_DB.md for provisioning AWS RDS or Azure Database for PostgreSQL, opening network access safely, setting `DATABASE_URL`, and validating via `/api/db`.
+
