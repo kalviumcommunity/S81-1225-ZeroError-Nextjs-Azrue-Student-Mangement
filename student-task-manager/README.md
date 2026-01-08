@@ -2059,3 +2059,7 @@ npm run dev
 
 See OBJECT_STORAGE.md for step-by-step setup, env vars, and how the presigned upload flow works via `/api/upload` and the `/upload` page.
 
+## Secret Management (AWS/Azure)
+
+See SECRETS.md for setting up AWS Secrets Manager or Azure Key Vault, least-privilege access, and our server-side retrieval with a safe validation route at `/api/secrets`.
+
