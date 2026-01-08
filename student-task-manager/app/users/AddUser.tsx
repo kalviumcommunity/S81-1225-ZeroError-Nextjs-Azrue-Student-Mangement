@@ -2,6 +2,7 @@
 import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/fetcher";
+import { sanitizeInput } from "@/lib/sanitize";
 
 export default function AddUser() {
   const { data } = useSWR("/api/users", fetcher);
@@ -12,7 +13,7 @@ export default function AddUser() {
 
     const tempUser = {
       id: Date.now(),
-      name,
+      name: sanitizeInput(name),
       email: `temp${Date.now()}@user.com`,
       createdAt: new Date().toISOString(),
     };
@@ -31,7 +32,7 @@ export default function AddUser() {
     await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email: tempUser.email, passwordHash: "temp-hash" }),
+      body: JSON.stringify({ name: tempUser.name, email: tempUser.email, passwordHash: "temp-hash" }),
     });
 
     // Revalidate data from server

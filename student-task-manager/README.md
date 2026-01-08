@@ -1,6 +1,133 @@
   This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
   ---
+  
+## 🛡️ Input Sanitization & OWASP Practices
+
+We mitigate XSS and SQL Injection by sanitizing inputs and using parameterized queries.
+
+### Sanitizer Utility
+
+Centralized helpers in [lib/sanitize.ts](lib/sanitize.ts):
+
+```ts
+import sanitizeHtml from "sanitize-html";
+export function sanitizeInput(input: any): string {
+  return sanitizeHtml(String(input ?? ""), { allowedTags: [], allowedAttributes: {} });
+}
+```
+
+### Server-side Sanitization (Before Store)
+
+- Signup: sanitize `name`, `email` → [app/api/auth/signup/route.ts](app/api/auth/signup/route.ts)
+- Login: sanitize `email` → [app/api/auth/login/route.ts](app/api/auth/login/route.ts)
+- Create User: sanitize `name`, `email` → [app/api/users/route.ts](app/api/users/route.ts)
+
+### 🔒 Role-Based Access Control (RBAC)
+
+This project implements RBAC to enforce backend-first permissions and provide role-aware UI.
+
+### Roles & Permissions
+
+| Role   | Permissions                          |
+|--------|--------------------------------------|
+| Admin  | create, read, update, delete (all)   |
+| Editor | read, update                         |
+| Viewer | read                                 |
+
+Central mapping is defined in [lib/rbac.ts](lib/rbac.ts). Policies are enforced in the backend via `requirePermission()` and in the UI by checking the `role` from `/api/auth/me`.
+
+---
+
+## 🛡️ Security Headers (HSTS, CSP, CORS)
+
+We enforce secure communication and protect against common web attacks using standardized security headers.
+
+### Purpose of Implemented Headers
+
+| Header | Purpose | Attack Prevented |
+|--------|---------|------------------|
+| **HSTS** | Forces browsers to always use HTTPS | Man-in-the-middle (MITM) attacks |
+| **CSP** | Restricts allowed sources for scripts, styles, and content | Cross-Site Scripting (XSS) |
+| **CORS** | Controls which domains can access your API | Unauthorized API access (Cross-Origin) |
+| **X-Content-Type-Options** | Prevents MIME type sniffing | Drive-by downloads & malicious uploads |
+| **X-Frame-Options** | Prevents site from being embedded in iframes | Clickjacking |
+| **Referrer-Policy** | Controls how much referrer information is shared | Information leakage |
+
+### Configuration in `next.config.ts`
+
+```typescript
+// next.config.ts
+const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;",
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+        ],
+      },
+      {
+        source: '/api/(.*)',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: 'http://localhost:3000', // Update this with your production domain
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+### Verification & Test Results
+
+The security headers have been verified using browser developer tools. Below is a summary of the inspection:
+
+1.  **HSTS**: Verified as `max-age=63072000; includeSubDomains; preload`.
+2.  **CSP**: Verified as `default-src 'self'; ...`.
+3.  **CORS**: Verified for API routes with allowed origin `http://localhost:3000`.
+
+### Reflection
+
+- **Importance of Enforcing HTTPS**: Enforcing HTTPS via HSTS ensures that all communication is encrypted, preventing sensitive data (like JWT tokens) from being intercepted in transit.
+- **Impact on Third-Party Integrations**: A strict CSP can break third-party scripts (e.g., Google Analytics, Intercom) or external fonts if they are not explicitly whitelisted. We've balanced this by including trusted domains like `apis.google.com` and `fonts.googleapis.com`.
+- **CORS vs. Security**: CORS is essential for API security, ensuring that only trusted frontend origins can communicate with our backend. We've avoided using `*` in production to prevent unauthorized domains from making requests on behalf of users.
+- **Balance**: Our setup provides a strong "secure by default" baseline while remaining flexible enough to support modern web features and common integrations.
+
+---
 
   ## Production-Ready Environment & Secrets
 

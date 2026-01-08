@@ -10,10 +10,12 @@ import {
   signRefreshToken,
   storeRefreshToken,
 } from "@/lib/auth";
+import { sanitizeFields } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { email, password } = body ?? {};
+  const cleaned = sanitizeFields({ email }, ["email"]);
 
   if (!email || !password) {
     return sendError(
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: cleaned.email } });
   if (!user) {
     return sendError(
       "Invalid credentials",
@@ -41,8 +43,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const accessToken = signAccessToken({ id: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ id: user.id, email: user.email });
+  const accessToken = signAccessToken({ id: user.id, email: user.email, role: user.role });
+  const refreshToken = signRefreshToken({ id: user.id, email: user.email, role: user.role });
 
   await storeRefreshToken(user.id, refreshToken);
 
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
     message: "Login successful",
     data: {
       accessToken,
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
     },
   });
 
