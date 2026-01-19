@@ -105,6 +105,7 @@ export async function fetchWithAuth(
  */
 export async function login(email: string, password: string): Promise<{
     success: boolean;
+    accessToken?: string;
     error?: string;
 }> {
     try {
@@ -120,7 +121,7 @@ export async function login(email: string, password: string): Promise<{
 
         if (data.success && data.data.accessToken) {
             tokenStorage.setAccessToken(data.data.accessToken);
-            return { success: true };
+            return { success: true, accessToken: data.data.accessToken };
         }
 
         return { success: false, error: data.message || "Login failed" };

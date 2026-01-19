@@ -27,12 +27,37 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
+    // Create user
     const user = await prisma.user.create({
       data: { name: cleaned.name, email: cleaned.email, passwordHash },
       select: { id: true, name: true, email: true, createdAt: true },
     });
 
-    return sendSuccess(user, "Signup successful", 201);
+    // Create a personal team and default project for the user (MVP convenience)
+    const team = await prisma.team.create({
+      data: {
+        name: `${user.name}'s Team`,
+        description: 'Personal team',
+        ownerId: user.id,
+      },
+      select: { id: true },
+    });
+
+    await prisma.membership.create({
+      data: { userId: user.id, teamId: team.id, role: 'OWNER' as any },
+    });
+
+    const project = await prisma.project.create({
+      data: {
+        name: 'My Tasks',
+        description: 'Default personal project',
+        teamId: team.id,
+        ownerId: user.id,
+      },
+      select: { id: true, name: true },
+    });
+
+    return sendSuccess({ ...user, defaultProjectId: project.id }, "Signup successful", 201);
   } catch (error: any) {
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);

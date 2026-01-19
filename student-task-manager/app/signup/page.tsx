@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signupSchema, type SignupFormData } from "@/schemas/signupSchema";
 import FormInput from "@/components/FormInput";
+import { useState } from "react";
 
 export default function SignupPage() {
 	const {
@@ -12,10 +13,27 @@ export default function SignupPage() {
 	} = useForm<SignupFormData>({
 		resolver: zodResolver(signupSchema),
 	});
+	const [serverError, setServerError] = useState<string | null>(null);
+	const [serverSuccess, setServerSuccess] = useState<string | null>(null);
 
-	const onSubmit = (data: SignupFormData) => {
-		console.log("Form Submitted:", data);
-		alert(`Welcome, ${data.name}!`);
+	const onSubmit = async (data: SignupFormData) => {
+		setServerError(null);
+		setServerSuccess(null);
+		try {
+			const res = await fetch("/api/auth/signup", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(data),
+			});
+			const json = await res.json();
+			if (res.ok && json.success) {
+				setServerSuccess("Signup successful. You can now log in.");
+			} else {
+				setServerError(json.message || "Signup failed");
+			}
+		} catch (e) {
+			setServerError("Network error");
+		}
 	};
 
 	return (
@@ -26,6 +44,8 @@ export default function SignupPage() {
 					<FormInput label="Name" name="name" register={register} error={errors.name?.message} />
 					<FormInput label="Email" name="email" type="email" register={register} error={errors.email?.message} />
 					<FormInput label="Password" name="password" type="password" register={register} error={errors.password?.message} />
+                    {serverError && <p className="text-red-600 text-sm">{serverError}</p>}
+                    {serverSuccess && <p className="text-green-600 text-sm">{serverSuccess}</p>}
 					<button type="submit" disabled={isSubmitting} className="w-full bg-black text-white rounded px-3 py-2 disabled:opacity-60">
 						{isSubmitting ? "Submitting..." : "Create Account"}
 					</button>
