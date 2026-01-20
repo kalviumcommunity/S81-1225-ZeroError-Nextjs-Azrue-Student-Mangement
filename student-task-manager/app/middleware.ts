@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Handle Public routes
-  if (pathname === "/" || pathname === "/login") {
+  if (pathname === "/" || pathname === "/login" || pathname === "/signup") {
     return NextResponse.next();
   }
 
@@ -43,7 +43,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Handle Protected Page routes (Routing Lesson Logic)
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/users")) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/users") || pathname.startsWith("/tasks")) {
     const token = req.cookies.get("token")?.value;
 
     if (!token) {
@@ -72,6 +72,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/users/:path*",
+    "/tasks/:path*",
     "/api/admin/:path*",
     "/api/users/:path*",
   ],
