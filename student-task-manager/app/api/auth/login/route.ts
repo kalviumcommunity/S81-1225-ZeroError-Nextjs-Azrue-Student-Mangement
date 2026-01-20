@@ -11,8 +11,11 @@ import {
   storeRefreshToken,
 } from "@/lib/auth";
 import { sanitizeFields } from "@/lib/sanitize";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
+  const requestId = Date.now().toString();
+  logger.info("Login request received", { requestId });
   const body = await req.json();
   const { email, password } = body ?? {};
   const cleaned = sanitizeFields({ email }, ["email"]);
@@ -27,6 +30,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email: cleaned.email } });
   if (!user) {
+    logger.warn("Login failed - user not found", { requestId, email: cleaned.email });
     return sendError(
       "Invalid credentials",
       ERROR_CODES.INVALID_CREDENTIALS,
@@ -36,6 +40,7 @@ export async function POST(req: NextRequest) {
 
   const match = await compare(password, user.passwordHash);
   if (!match) {
+    logger.warn("Login failed - wrong password", { requestId, userId: user.id });
     return sendError(
       "Invalid credentials",
       ERROR_CODES.INVALID_CREDENTIALS,
@@ -56,6 +61,8 @@ export async function POST(req: NextRequest) {
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     },
   });
+
+  logger.info("Login successful", { requestId, userId: user.id });
 
   response.cookies.set("refreshToken", refreshToken, {
     httpOnly: true,

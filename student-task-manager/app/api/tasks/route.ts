@@ -2,11 +2,13 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendSuccess, sendError, sendPaginatedSuccess, handlePrismaError } from '@/lib/responseHandler';
 import { ERROR_CODES } from '@/lib/errorCodes';
+import { logger } from '@/lib/logger';
 
 // Type-safe task status values (matches Prisma schema)
 type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'BLOCKED' | 'DONE';
 
 export async function GET(req: NextRequest) {
+  const requestId = Date.now().toString();
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, Number(searchParams.get('page') ?? 1));
   const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? 10)));
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest) {
   };
 
   try {
+    logger.info('Tasks list request', { requestId, page, limit, status, assigneeId, projectId });
     const [items, total] = await prisma.$transaction([
       prisma.task.findMany({
         where,
@@ -50,6 +53,7 @@ export async function GET(req: NextRequest) {
 
     return sendPaginatedSuccess(items, total, page, limit, 'Tasks fetched successfully');
   } catch (error: any) {
+    logger.error('Tasks list error', { requestId, error: error?.message });
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);
   }
@@ -57,10 +61,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const requestId = Date.now().toString();
     const body = await req.json();
     const { projectId, title, description, priority, assigneeId, dueDate } = body ?? {};
 
     if (!projectId || !title) {
+      logger.warn('Task create failed - missing fields', { requestId, projectId, title });
       return sendError(
         'Missing required fields: projectId and title are required',
         ERROR_CODES.MISSING_REQUIRED_FIELD,
@@ -81,8 +87,10 @@ export async function POST(req: NextRequest) {
       select: { id: true, title: true, status: true, priority: true, assigneeId: true, createdAt: true },
     });
 
+    logger.info('Task created', { requestId, taskId: task.id, projectId });
     return sendSuccess(task, 'Task created successfully', 201);
   } catch (error: any) {
+    logger.error('Task create error', { error: error?.message });
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);
   }

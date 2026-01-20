@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, handlePrismaError } from "@/lib/responseHandler";
 import { requireAuth } from "@/lib/authMiddleware";
+import { logger } from "@/lib/logger";
 
 // GET /api/me/bootstrap
 // Returns lightweight dashboard bootstrap data for the authenticated user
@@ -12,6 +13,8 @@ export async function GET(req: NextRequest) {
   const userId = auth.user!.id;
 
   try {
+    const requestId = Date.now().toString();
+    logger.info("Bootstrap request", { requestId, userId });
     // Find a default/personal project owned by the user. If multiple, pick earliest created.
     const project = await prisma.project.findFirst({
       where: { ownerId: userId },
@@ -59,6 +62,7 @@ export async function GET(req: NextRequest) {
       "Bootstrap data fetched"
     );
   } catch (error: any) {
+    logger.error("Bootstrap error", { error: error?.message });
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);
   }

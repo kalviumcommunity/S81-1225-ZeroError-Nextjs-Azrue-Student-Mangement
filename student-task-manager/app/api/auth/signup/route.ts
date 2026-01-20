@@ -4,9 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { sendSuccess, sendError, handlePrismaError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
 import { sanitizeFields } from "@/lib/sanitize";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   try {
+    const requestId = Date.now().toString();
+    logger.info("Signup request received", { requestId });
     const body = await req.json();
     const { name, email, password } = body ?? {};
     const cleaned = sanitizeFields({ name, email }, ["name", "email"]);
@@ -22,6 +25,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await prisma.user.findUnique({ where: { email: cleaned.email } });
     if (existing) {
+      logger.warn("Signup failed - duplicate email", { requestId, email: cleaned.email });
       return sendError("Email already registered", ERROR_CODES.DUPLICATE_ENTRY, 400);
     }
 
@@ -57,8 +61,11 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true },
     });
 
+    logger.info("Signup successful", { requestId, userId: user.id, projectId: project.id });
+
     return sendSuccess({ ...user, defaultProjectId: project.id }, "Signup successful", 201);
   } catch (error: any) {
+    logger.error("Signup failed", { error: error?.message });
     const { message, code, status } = handlePrismaError(error);
     return sendError(message, code, status, error?.message);
   }
