@@ -3,9 +3,12 @@ import { sendError } from "@/lib/responseHandler";
 import { ERROR_CODES } from "@/lib/errorCodes";
 import { verifyRefreshToken, signAccessToken, signRefreshToken, storeRefreshToken, revokeRefreshToken } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
     try {
+        const requestId = Date.now().toString();
+        logger.info("Token refresh request", { requestId });
         // Read from cookie first, fall back to body (for non-browser clients)
         let refreshToken = req.cookies.get("refreshToken")?.value;
 
@@ -15,12 +18,14 @@ export async function POST(req: NextRequest) {
         }
 
         if (!refreshToken) {
+            logger.warn("Refresh failed - missing token", { requestId });
             return sendError("Missing refresh token", ERROR_CODES.MISSING_REQUIRED_FIELD, 400);
         }
 
         const verification = await verifyRefreshToken(refreshToken);
 
         if (!verification.valid || !verification.userId) {
+            logger.warn("Refresh failed - invalid or expired", { requestId });
             return sendError("Invalid or expired refresh token", verification.code || ERROR_CODES.INVALID_TOKEN, 401);
         }
 
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (!user) {
+            logger.warn("Refresh failed - user not found", { requestId, userId: verification.userId });
             return sendError("User not found", ERROR_CODES.USER_NOT_FOUND, 404);
         }
 
@@ -49,6 +55,8 @@ export async function POST(req: NextRequest) {
             },
         });
 
+        logger.info("Token refreshed", { requestId, userId: user.id });
+
         // Set refresh token in cookie
         response.cookies.set("refreshToken", newRefreshToken, {
             httpOnly: true,
@@ -60,6 +68,7 @@ export async function POST(req: NextRequest) {
 
         return response;
     } catch (error: any) {
+        logger.error("Refresh token error", { error: error?.message });
         return sendError("Failed to refresh token", ERROR_CODES.INTERNAL_ERROR, 500, error?.message);
     }
 }
