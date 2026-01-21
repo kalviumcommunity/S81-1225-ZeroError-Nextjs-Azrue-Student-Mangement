@@ -16,12 +16,8 @@ const nextConfig: NextConfig = {
   // Optimize for production
   compress: true,
   
-<<<<<<< HEAD
   // Silence root inference warning by pinning Turbopack root to this project
   // See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory
-=======
-  // Silence Turbopack root inference warning in monorepo/workspace setups
->>>>>>> origin/main
   turbopack: {
     root: __dirname,
   },

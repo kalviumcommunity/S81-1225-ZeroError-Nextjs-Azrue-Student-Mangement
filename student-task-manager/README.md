@@ -2,6 +2,50 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ---
 
+## Testing (Jest + React Testing Library)
+
+- Install dev dependencies:
+
+```
+npm install --save-dev jest jest-environment-jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event ts-jest @types/jest
+```
+
+- Config files:
+	- Jest config: [jest.config.js](jest.config.js)
+	- Setup: [jest.setup.js](jest.setup.js)
+
+- Coverage settings:
+	- Targets `src/**/*.{js,jsx,ts,tsx}`
+	- Global thresholds: 80% for branches, functions, lines, statements
+
+- Sample source under `src/`:
+	- Math util: [src/utils/math.ts](src/utils/math.ts)
+	- Component: [src/components/Button.tsx](src/components/Button.tsx)
+
+- Sample tests under `__tests__/`:
+	- Logic: [__tests__/utils.test.ts](__tests__/utils.test.ts)
+	- Component: [__tests__/Button.test.tsx](__tests__/Button.test.tsx)
+
+- Scripts:
+	- `npm test` → watch mode
+	- `npm run test:ci` → CI-friendly with coverage
+
+- Run locally:
+
+```
+npm ci
+npm run test:ci
+```
+
+- CI integration (GitHub Actions):
+	- Workflow: [.github/workflows/tests.yml](.github/workflows/tests.yml)
+	- Runs `npm ci` then `npm run test:ci` in `student-task-manager` folder
+
+Notes:
+- `testEnvironment` is `jsdom` for component tests.
+- `@testing-library/jest-dom` extends matchers (e.g., `toBeInTheDocument`).
+- Adjust coverage thresholds or include more files as the codebase grows.
+
 ## Transactional Emails (SendGrid)
 
 Transactional emails notify users about critical events (welcome, password resets, alerts) and are sent automatically by backend triggers.
