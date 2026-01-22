@@ -1,4 +1,16 @@
 const nextJest = require('next/jest');
+
+const createJestConfig = nextJest({
+  dir: './',
+});
+
+const customJestConfig = {
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  testEnvironment: 'jsdom',
+  collectCoverage: true,
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.test.{js,jsx,ts,tsx}',
 const createJestConfig = nextJest({ dir: './' });
 
 const customJestConfig = {
@@ -21,6 +33,9 @@ const customJestConfig = {
       lines: 80,
       statements: 80,
     },
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/$1',
   },
 };
 

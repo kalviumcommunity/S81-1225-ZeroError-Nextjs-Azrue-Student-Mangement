@@ -5,6 +5,7 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+export const prisma: PrismaClient = global.prisma ?? new PrismaClient();
 export const prisma = global.prisma ||
   new PrismaClient({
     log: process.env.DEBUG?.includes('prisma:query')

@@ -21,6 +21,15 @@
     "prisma:migrate:indexes:dev": "dotenv -e .env.development -- npx prisma migrate dev --name add_indexes_for_optimisation",
     "prisma:studio": "npx prisma studio",
     "db:seed": "npx prisma db seed",
+    "test": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.0",
+    "next": "16.0.10",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "server-only": "^0.0.1"
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -86,6 +95,7 @@
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
+    "typescript": "^5"
     "typescript": "^5",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"

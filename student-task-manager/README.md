@@ -12,6 +12,71 @@
 npm install --save-dev jest jest-environment-jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event ts-jest @types/jest
 ```
 
+## Testing: Jest + React Testing Library
+
+This app includes a fully configured unit-testing setup using Jest and React Testing Library (RTL) with coverage thresholds enforced and CI integration.
+
+### Install (already added to devDependencies)
+
+```bash
+npm ci
+```
+
+If you need to (re)install manually:
+
+```bash
+npm install --save-dev jest @testing-library/react @testing-library/jest-dom @testing-library/user-event @types/jest
+```
+
+### Configuration
+
+- Jest config: [jest.config.js](jest.config.js)
+- Jest setup: [jest.setup.ts](jest.setup.ts)
+- Sample source under [src/](src)
+- Sample tests under [__tests__/](__tests__)
+
+Coverage thresholds (global): 80% for branches, functions, lines, and statements. The build fails if unmet.
+
+### Run Tests
+
+```bash
+npm test
+```
+
+With coverage report:
+
+```bash
+npm run test:coverage
+```
+
+Expected summary (example):
+
+```
+PASS  __tests__/Greeting.test.tsx
+PASS  __tests__/math.test.ts
+--------------------------------
+File           | % Stmts | % Branch | % Funcs | % Lines |
+---------------------------------------------------------
+All files      |   85.00 |    80.00 |   90.00 |   85.00 |
+```
+
+### CI Integration (GitHub Actions)
+
+The workflow runs tests with coverage in the `build-and-test` job. See [.github/workflows/azure-deploy.yml](../.github/workflows/azure-deploy.yml).
+
+```yaml
+- name: Run Unit Tests
+	run: npm test -- --coverage
+	working-directory: ${{ env.APP_PATH }}
+```
+
+### Notes & Reflection
+
+- Testing pyramid: prioritize fast unit tests (functions, small components), then integration (API routes, data access), and E2E (user flows).
+- Current coverage focuses on utilities and simple components; expand to cover hooks, server utilities in `lib/`, and critical UI flows in `app/`.
+- Gaps to address: complex server-only logic, error states, and edge-cases in forms and API interactions.
+
+## Production-Ready Environment & Secrets
 - Config files:
 	- Jest config: [jest.config.js](jest.config.js)
 	- Setup: [jest.setup.js](jest.setup.js)
