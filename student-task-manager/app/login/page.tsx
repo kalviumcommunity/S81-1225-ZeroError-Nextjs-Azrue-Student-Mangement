@@ -1,51 +1,70 @@
 "use client";
-
 import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
 import { useState } from "react";
+import { login } from "@/lib/clientAuth";
 
-export default function LoginPage() {
+export default function Login() {
 	const router = useRouter();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 
-	function handleSubmit(e: React.FormEvent) {
+	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		// Week 1: no real auth yet. Stub login then navigate.
-		router.push("/dashboard");
+		setLoading(true);
+		setError(null);
+		const result = await login(email, password);
+		setLoading(false);
+
+		if (result.success && result.accessToken) {
+			// Set cookie so middleware can protect page routes
+			Cookies.set("token", result.accessToken, {
+				sameSite: "strict",
+				secure: false,
+			});
+			router.push("/dashboard");
+		} else {
+			setError(result.error || "Login failed");
+		}
 	}
 
 	return (
-		<div className="min-h-screen flex items-center justify-center p-8">
+		<main className="min-h-screen flex items-center justify-center p-8">
 			<div className="w-full max-w-md border rounded-lg p-6">
 				<h1 className="text-xl font-semibold">Login</h1>
-				<form className="mt-4 space-y-4" onSubmit={handleSubmit}>
+				<form onSubmit={handleSubmit} className="mt-4 space-y-4">
 					<div>
 						<label className="block text-sm font-medium">Email</label>
 						<input
-							className="mt-1 w-full border rounded px-3 py-2"
 							type="email"
-							placeholder="you@example.com"
 							value={email}
 							onChange={(e) => setEmail(e.target.value)}
+							className="mt-1 w-full border rounded px-3 py-2"
 							required
 						/>
 					</div>
 					<div>
 						<label className="block text-sm font-medium">Password</label>
 						<input
-							className="mt-1 w-full border rounded px-3 py-2"
 							type="password"
-							placeholder="••••••••"
 							value={password}
 							onChange={(e) => setPassword(e.target.value)}
+							className="mt-1 w-full border rounded px-3 py-2"
 							required
 						/>
 					</div>
-					<button type="submit" className="w-full bg-black text-white rounded px-3 py-2">
-						Sign In
+					{error && <p className="text-red-600 text-sm">{error}</p>}
+					<button
+						type="submit"
+						disabled={loading}
+						className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors disabled:opacity-60"
+					>
+						{loading ? "Signing in..." : "Login"}
 					</button>
 				</form>
 			</div>
-		</div>
+		</main>
 	);
 }

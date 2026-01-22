@@ -18,5 +18,9 @@ export const env = {
   AUTH_SECRET: required('AUTH_SECRET'),
   JWT_SECRET: required('JWT_SECRET'),
 
+  // email (SendGrid)
+  SENDGRID_API_KEY: required('SENDGRID_API_KEY'),
+  SENDGRID_SENDER: required('SENDGRID_SENDER'),
+
   APP_ENV: process.env.APP_ENV ?? process.env.NEXT_PUBLIC_APP_ENV ?? process.env.NODE_ENV ?? 'unknown',
 };

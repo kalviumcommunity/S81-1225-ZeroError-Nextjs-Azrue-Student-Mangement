@@ -8,6 +8,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const project = await prisma.project.findUnique({
       where: { id },
       select: { id: true, name: true, description: true, dueDate: true, teamId: true, ownerId: true, createdAt: true },
+  const id = Number(params.id);
+  if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id },
+      select: { id: true, name: true, teamId: true, ownerId: true, createdAt: true },
     });
     if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(project, { status: 200 });
@@ -52,6 +58,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         ...(dueDateValue !== undefined ? { dueDate: dueDateValue } : {}),
       },
       select: { id: true, name: true, description: true, dueDate: true, teamId: true, ownerId: true, createdAt: true },
+  const id = Number(params.id);
+  if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  try {
+    const body = await req.json();
+    const { name, description, dueDate } = body ?? {};
+    const project = await prisma.project.update({
+      where: { id },
+      data: {
+        ...(name ? { name } : {}),
+        ...(description !== undefined ? { description: description ?? null } : {}),
+        ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
+      },
+      select: { id: true, name: true, teamId: true, ownerId: true, createdAt: true },
     });
     return NextResponse.json({ message: 'Project updated', project }, { status: 200 });
   } catch (error: any) {
@@ -65,6 +84,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const id = Number.parseInt(params.id, 10);
   if (Number.isNaN(id) || id <= 0) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  const id = Number(params.id);
+  if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
   try {
     await prisma.project.delete({ where: { id } });
     return NextResponse.json({ message: 'Project deleted' }, { status: 200 });

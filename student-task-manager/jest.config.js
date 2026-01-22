@@ -11,6 +11,20 @@ const customJestConfig = {
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',
     '!src/**/*.test.{js,jsx,ts,tsx}',
+const createJestConfig = nextJest({ dir: './' });
+
+const customJestConfig = {
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
+  testEnvironment: 'jsdom',
+  collectCoverage: true,
+  testMatch: [
+    '**/__tests__/**/*.test.[jt]s?(x)',
+    '**/?(*.)+(spec|test).[jt]s?(x)',
+  ],
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.test.{js,jsx,ts,tsx}',
+    '!src/pages/_*.{js,jsx,ts,tsx}',
   ],
   coverageThreshold: {
     global: {
