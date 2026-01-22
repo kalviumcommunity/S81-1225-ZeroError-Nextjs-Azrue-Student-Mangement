@@ -22,7 +22,8 @@
     "prisma:studio": "npx prisma studio",
     "db:seed": "npx prisma db seed",
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0",
